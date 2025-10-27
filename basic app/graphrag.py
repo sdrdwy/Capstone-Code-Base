@@ -1,6 +1,5 @@
-import os
-from langchain_community.graphs import Neo4jGraph
-from langchain_community.chains import GraphCypherQAChain
+from langchain_neo4j import Neo4jGraph
+from langchain_neo4j.chains.graph_qa.cypher import GraphCypherQAChain
 from langchain_community.chat_models import ChatTongyi
 from langchain_core.prompts import PromptTemplate
 
@@ -43,14 +42,20 @@ chain = GraphCypherQAChain.from_llm(
     llm=llm,
     cypher_prompt=cypher_prompt,  
     verbose=True,
-    allow_dangerous_requests=True
+    allow_dangerous_requests=True,
+    validate_cypher=True,
+    fix_cypher=True, 
+    max_fix_attempts=2,
 )
 
-# response = chain.invoke({"query": "滋阴除湿汤加减可以用来治疗什么？"})
-# print(response)
+
 
 prompt_query_fix = ChatPromptTemplate.from_template(
-    """你是一个中医皮肤病领域专家，你现在需要协助把用户提出的问题中用到的可能的中医术语替换成上下文中查询到的术语。并把替换后的问题返回出来
+"""你是一个中医皮肤病领域专家，
+你现在需要协助把用户提出的问题中用到的可能的中医术语替换成上下文中查询到的术语最合适的，用于cypher的查询,
+并把替换后的问题返回出来注意回答是修正之后的提问，为不是回答的答案。
+注意：不能修改上下文中的内容，回答中替换后的文本一定是上下文中那块部分的原文
+例如：提问是“阴除湿汤可以用来治疗什么” 你要返回：“阴除湿汤加减可以用来治疗什么”
 
 上下文：
 {context}
@@ -70,7 +75,7 @@ vectorstore = Chroma(
 
 retriever = vectorstore.as_retriever(
     search_type = "similarity",
-    search_kwargs  = {"k":4}
+    search_kwargs  = {"k":29}
 )
 
 rag_chain = (
@@ -80,5 +85,17 @@ rag_chain = (
     | StrOutputParser()
 )
 
-answer = rag_chain.invoke("滋阴除湿汤可以用来治疗什么")
-print("回答：",answer)
+# query_fix = rag_chain.invoke("草还丹可以用来治疗什么")
+# print(query_fix)
+# response = chain.invoke({"query": query_fix})
+# print(response)
+
+if __name__ == "__main__":
+    while True:
+        query_origin = input("your query:")
+        if query_origin == "-1":
+            break
+        query_fix = rag_chain.invoke(query_origin)
+        print(f"Fixed query:{query_fix}")
+        response = chain.invoke({"query":query_fix})
+        print(response["result"])
