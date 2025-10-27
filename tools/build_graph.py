@@ -7,13 +7,8 @@ from langchain_experimental.graph_transformers import LLMGraphTransformer
 from langchain_community.chat_models import ChatTongyi
 
 import json
-
-os.environ["DASHSCOPE_API_KEY"] = "sk-c763fc92bf8c46c7ae31639b05d89c96"
-
-os.environ["NEO4J_URI"] = "neo4j://localhost:7687"
-os.environ["NEO4J_USERNAME"] = "neo4j"
-os.environ["NEO4J_PASSWORD"] = "password"
-
+import dotenv
+dotenv.load_dotenv()
 graph = Neo4jGraph()
 print("graph prepared")
 
