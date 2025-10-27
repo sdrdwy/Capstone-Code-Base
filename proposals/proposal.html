@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html>
+	<style>
+  body {
+    font-family: "SimSun", "宋体", serif; /* 中文优先用宋体，英文用衬线体（类似 Times New Roman） */
+  }
+  /* 如果希望英文更明确使用 Times New Roman */
+  :where(p, h1, h2, h3, li) {
+    font-family: "Times New Roman", "SimSun", "宋体", serif;
+  }
+</style>
+<head>
+<title>proposal.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<hr>
+<h1 id="%E4%B8%AD%E8%A5%BF%E5%8C%BB%E7%BB%93%E5%90%88%E8%BE%85%E5%8A%A9%E8%AF%8A%E7%96%97%E5%A4%A7%E6%A8%A1%E5%9E%8B-capstone-%E9%A1%B9%E7%9B%AE">中西医结合辅助诊疗大模型 Capstone 项目</h1>
+<hr>
+<h2 id="1-%E9%A1%B9%E7%9B%AE%E6%A6%82%E8%BF%B0introduction">1. 项目概述（Introduction）</h2>
+<h3 id="%E8%83%8C%E6%99%AF%E4%B8%8E%E7%9B%AE%E6%A0%87">背景与目标</h3>
+<p>中西医结合诊疗强调“病证结合”，在皮肤病等慢性病管理中具有独特优势。然而，临床实践中常面临辨证标准模糊、知识体系割裂、问诊路径不规范等问题。本项目旨在构建一个<strong>AI驱动的中西医结合问诊辅助系统</strong>，在医生与患者对话过程中<strong>实时分析问诊逻辑、检测事实偏差、推荐关键问题或辨证方向</strong>，从而提升诊疗规范性与准确性。</p>
+<blockquote>
+<p><strong>注意</strong>：本系统<strong>不扮演病人</strong>，而是作为“智能协作者”嵌入真实问诊流程，提供<strong>过程级反馈</strong>（如：“您尚未询问皮损是否渗出，建议补充以鉴别湿热证”）。</p>
+</blockquote>
+<h3 id="%E6%A0%B8%E5%BF%83%E5%8A%9F%E8%83%BD">核心功能</h3>
+<ul>
+<li><strong>实时对话理解</strong>：解析医患对话中的症状、体征、病史等信息；</li>
+<li><strong>中西医知识对齐</strong>：自动映射西医症状 ↔ 中医证型（如“红斑+瘙痒+口苦” → “风热证”）；</li>
+<li><strong>问诊完整性检测</strong>：基于标准诊疗路径，识别缺失的关键问题；</li>
+<li><strong>动态建议生成</strong>：推荐下一步应问的问题、需鉴别的证型或检查项；</li>
+<li><strong>过程评估报告</strong>：问诊结束后生成结构化评估（覆盖辨证逻辑、中西医整合度等维度）。</li>
+</ul>
+<h3 id="%E5%88%9B%E6%96%B0%E7%82%B9">创新点</h3>
+<ol>
+<li><strong>RAG + GraphRAG 双引擎知识增强</strong>：融合结构化中医知识图谱与非结构化西医文献，实现跨体系语义对齐；</li>
+<li><strong>长链路 Chain-of-Thought（CoT）推理</strong>：模拟“症状→辨病→辨证→立法→处方”完整中医思维链；</li>
+<li><strong>对抗式模仿学习（GAIL）</strong>：通过真实专家问诊轨迹训练，使模型学会“何时问什么”；</li>
+<li><strong>多智能体协作架构</strong>：中医智能体与西医智能体独立推理后融合建议，模拟多学科会诊；</li>
+<li><strong>过程导向评估机制</strong>：不仅关注诊断结果，更评估问诊逻辑的完整性与合理性。</li>
+</ol>
+<h3 id="%E9%A2%84%E6%9C%9F%E6%88%90%E6%9E%9C">预期成果</h3>
+<ol>
+<li><strong>本学期内</strong>:
+<ul>
+<li>完成皮肤病知识图谱的构建；</li>
+<li>搭建皮肤病诊疗专家Agent；</li>
+<li>用于辅助诊疗的explainable AI system；</li>
+<li>可使用的简单web应用；</li>
+</ul>
+</li>
+<li><strong>项目完成时</strong>:
+<ul>
+<li><strong>技术成果</strong>：
+<ul>
+<li>1套支持多病种的中西医结合问诊辅助系统（Web端）</li>
+<li>4个专科知识库（皮肤病、消化、妇科、儿科）</li>
+<li>开源GraphRAG构建工具链（针对中医典籍）</li>
+</ul>
+</li>
+<li><strong>学术成果</strong>：
+<ul>
+<li>技术报告 / 会议论文（如AMIA、NeurIPS ML4H）</li>
+<li>可复现的CoT+GAIL医学问诊训练框架</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="%E8%8C%83%E5%9B%B4">范围</h3>
+<ul>
+<li><strong>初期聚焦皮肤病</strong>（湿疹、痤疮、银屑病等），因其症状直观、中西医诊疗路径清晰；</li>
+<li>验证可行性后，扩展至消化科、妇科等病证结合成熟的领域。</li>
+</ul>
+<hr>
+<h2 id="2-%E6%80%BB%E4%BD%93%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84overall-implementation-architecture">2. 总体实现架构（Overall Implementation Architecture）</h2>
+<h3 id="%E7%B3%BB%E7%BB%9F%E6%9E%B6%E6%9E%84%E4%B8%89%E5%B1%82%E8%AE%BE%E8%AE%A1">系统架构（三层设计）</h3>
+<h4 id="%E6%95%B0%E6%8D%AE%E5%B1%82"><strong>数据层</strong></h4>
+<ul>
+<li><strong>西医知识源</strong>：
+<ul>
+<li>教科书：《安德鲁斯皮肤病学》《中国临床皮肤病学》</li>
+<li>文献：PubMed、arXiv 医学论文</li>
+<li>数据集：ISIC（皮肤影像）、SD-198（中文皮肤病图像+标签）</li>
+</ul>
+</li>
+<li><strong>中医知识源</strong>：
+<ul>
+<li>典籍：《外科正宗》《医宗金鉴·外科心法要诀》</li>
+<li>教材：《中西医结合皮肤性病学》</li>
+<li>医案：合作医院脱敏真实病历（含四诊信息、方药、疗效）</li>
+</ul>
+</li>
+<li><strong>多模态对齐数据</strong>：
+<ul>
+<li>图像-文本对（皮损照片 + 西医描述 + 中医辨证）</li>
+<li>医患对话日志（来自 CMDD 等中文医疗对话数据集）</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p><strong>预处理重点</strong>：构建“西医症状 ↔ 中医证候”映射表，作为 GraphRAG 的边关系。</p>
+</blockquote>
+<h4 id="%E6%A8%A1%E5%9E%8B%E5%B1%82%E6%A0%B8%E5%BF%83%E5%88%9B%E6%96%B0%E5%8C%BA"><strong>模型层（核心创新区）</strong></h4>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>功能</th>
+<th>技术实现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RAG 检索器</strong></td>
+<td>从非结构化文献中检索相关西医指南/研究</td>
+<td>Dense Retrieval（如 Sentence-BERT） + LLM 重排</td>
+</tr>
+<tr>
+<td><strong>GraphRAG 引擎</strong></td>
+<td>从中医知识图谱中推理证型-治法-方剂路径</td>
+<td>Neo4j + LLM-based graph query（如 Cypher 生成）</td>
+</tr>
+<tr>
+<td><strong>CoT 推理模块</strong></td>
+<td>生成可解释的诊断推理链</td>
+<td>结构化提示 + LLM（如 LLaMA-3-8B）</td>
+</tr>
+<tr>
+<td><strong>对抗学习模块（GAIL）</strong></td>
+<td>学习专家问诊策略</td>
+<td>状态=当前问诊上下文，动作=推荐问题，奖励=专家轨迹相似度</td>
+</tr>
+<tr>
+<td><strong>多智能体协调器</strong></td>
+<td>融合中医/西医建议</td>
+<td>基于置信度加权或辩论机制（如 Agent Debate）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%E5%BA%94%E7%94%A8%E5%B1%82"><strong>应用层</strong></h4>
+<ul>
+<li><strong>Web/移动端界面</strong>：医生输入或语音转写对话，系统实时高亮建议（如侧边栏提示：“建议询问舌苔颜色以辨湿热”）；</li>
+<li><strong>评估报告生成器</strong>：问诊结束后输出 PDF 报告，含问诊覆盖率、辨证准确率、改进建议；</li>
+<li><strong>反馈闭环</strong>：医生可标记建议是否合理，用于在线微调。</li>
+</ul>
+<h3 id="%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%A8%8B">工作流程</h3>
+<ol>
+<li>医生开始问诊（文字/语音）；</li>
+<li>系统实时解析对话，更新患者状态向量；</li>
+<li><strong>RAG + GraphRAG 并行检索</strong>中西医知识；</li>
+<li><strong>CoT 模块生成当前推理链</strong>（如：“患者主诉瘙痒剧烈、皮疹色红 → 风热证可能性高 → 需确认是否伴发热、脉浮数”）；</li>
+<li><strong>GAIL 模块推荐下一步问题</strong>（如：“请询问是否怕风、有无发热”）；</li>
+<li>多智能体协调器输出最终建议；</li>
+<li>问诊结束，生成评估报告。</li>
+</ol>
+<h3 id="%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%A8%8B%E5%9B%BE">工作流程图</h3>
+<img src="system_work_flow.png" width="56%" />
+<p style="page-break-before: always;"></p>
+<h3 id="%E6%89%A9%E5%B1%95%E6%80%A7%E8%AE%BE%E8%AE%A1">扩展性设计</h3>
+<ul>
+<li>知识库插件化：新增科室只需注入对应知识图谱 + 文献库；</li>
+<li>模块解耦：RAG/GraphRAG/CoT 可独立升级。</li>
+</ul>
+<hr>
+<h2 id="3-%E6%8A%80%E6%9C%AF%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%8A%80%E6%9C%AF%E9%80%89%E5%9E%8B">3. 技术架构与技术选型</h2>
+<h3 id="%E6%A0%B8%E5%BF%83%E6%8A%80%E6%9C%AF%E6%A0%88">核心技术栈</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>选型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>基座模型</strong></td>
+<td>LLaMA-3-8B / Qwen2-7B</td>
+<td>开源、支持中文、适合微调</td>
+</tr>
+<tr>
+<td><strong>RAG 框架</strong></td>
+<td>LlamaIndex + LangChain</td>
+<td>支持混合检索（向量 + 关键词）</td>
+</tr>
+<tr>
+<td><strong>GraphRAG</strong></td>
+<td>Neo4j + LLM-based Cypher Generator</td>
+<td>构建“证型-症状-方剂”三元组图谱</td>
+</tr>
+<tr>
+<td><strong>CoT 训练</strong></td>
+<td>结构化提示 + SFT + DPO</td>
+<td>使用教材/指南生成 CoT 样本</td>
+</tr>
+<tr>
+<td><strong>对抗学习</strong></td>
+<td>GAIL 实现（基于 Stable Baselines3）</td>
+<td>状态空间=对话历史嵌入，动作空间=预定义问题集</td>
+</tr>
+<tr>
+<td><strong>多智能体</strong></td>
+<td>LangGraph / AutoGen</td>
+<td>支持智能体间消息传递与决策融合</td>
+</tr>
+<tr>
+<td><strong>部署</strong></td>
+<td>FastAPI + React + Whisper（语音）</td>
+<td>轻量级，支持医院内网部署</td>
+</tr>
+</tbody>
+</table>
+<h3 id="%E5%85%B3%E9%94%AE%E6%8A%80%E6%9C%AF%E8%AF%B4%E6%98%8E">关键技术说明</h3>
+<h4 id="rag--graphrag-%E8%9E%8D%E5%90%88%E6%9C%BA%E5%88%B6"><strong>RAG + GraphRAG 融合机制</strong></h4>
+<ul>
+<li><strong>RAG</strong>：处理最新西医指南、药物禁忌等非结构化知识；</li>
+<li><strong>GraphRAG</strong>：处理中医辨证逻辑（如“湿热证 → 龙胆泻肝汤 → 忌辛辣”）；</li>
+<li><strong>融合策略</strong>：LLM 作为“仲裁者”，综合两者输出生成最终建议。</li>
+</ul>
+<h4 id="%E9%95%BF%E9%93%BE%E8%B7%AF-cot-%E4%B8%8E%E5%8F%AF%E8%A7%A3%E9%87%8A%E6%80%A7"><strong>长链路 CoT 与可解释性</strong></h4>
+<p>参考 <strong>X-Ray-CoT</strong>（arXiv:2508.12455）思路，将问诊过程分解为：</p>
+<blockquote>
+<p><strong>发现阶段</strong>（识别症状） → <strong>推理阶段</strong>（辨病+辨证） → <strong>决策阶段</strong>（建议检查/治疗）<br>
+每步生成自然语言解释，供医生审查。</p>
+</blockquote>
+<h4 id="%E5%AF%B9%E6%8A%97%E5%BC%8F%E5%AD%A6%E4%B9%A0gail%E5%AE%9E%E7%8E%B0"><strong>对抗式学习（GAIL）实现</strong></h4>
+<ul>
+<li><strong>专家轨迹</strong>：来自合作医院的标准化问诊录音（转文本）；</li>
+<li><strong>智能体策略</strong>：基于当前对话状态，从预定义问题库中选择最优问题；</li>
+<li><strong>训练目标</strong>：最小化智能体行为与专家行为的分布差异（JS 散度）。</li>
+</ul>
+<hr>
+<h2 id="4-%E5%8F%AF%E8%A1%8C%E6%80%A7%E5%88%86%E6%9E%90%E4%B8%8E%E9%A3%8E%E9%99%A9%E7%AE%A1%E7%90%86">4. 可行性分析与风险管理</h2>
+<h3 id="%E6%8A%80%E6%9C%AF%E5%8F%AF%E8%A1%8C%E6%80%A7">技术可行性</h3>
+<ul>
+<li><strong>RAG/GraphRAG</strong>：LlamaIndex、Neo4j 社区成熟；</li>
+<li><strong>CoT</strong>：X-Ray-CoT 等工作已验证医学 CoT 有效性；</li>
+<li><strong>GAIL</strong>：在机器人、游戏领域广泛应用，医学对话可简化状态空间。</li>
+</ul>
+<h3 id="%E6%95%B0%E6%8D%AE%E5%8F%AF%E8%A1%8C%E6%80%A7">数据可行性</h3>
+<ul>
+<li>初期使用教材+公开数据集构建合成轨迹；</li>
+<li>后期通过医院合作获取真实问诊数据（需伦理审批）。</li>
+</ul>
+<h3 id="%E9%A3%8E%E9%99%A9%E4%B8%8E%E5%BA%94%E5%AF%B9">风险与应对</h3>
+<table>
+<thead>
+<tr>
+<th>风险</th>
+<th>应对</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>中医知识图谱构建成本高</td>
+<td>聚焦皮肤病，限定证型数量（≤5/病种）</td>
+</tr>
+<tr>
+<td>实时性要求高</td>
+<td>采用缓存机制 + 轻量化模型（如蒸馏版 LLM）</td>
+</tr>
+<tr>
+<td>医生信任度低</td>
+<td>强调“建议非强制”，提供 CoT 解释链</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="5-%E9%A1%B9%E7%9B%AE%E9%98%B6%E6%AE%B5%E8%A7%84%E5%88%9212%E5%91%A8">5. 项目阶段规划（12周）</h2>
+<h3 id="%E2%96%B6-phase-1%E7%9A%AE%E8%82%A4%E7%97%85%E4%B8%93%E7%A7%91mvp%E6%9E%84%E5%BB%BAmonth-1%E2%80%933">▶ Phase 1：皮肤病专科MVP构建（Month 1–3）</h3>
+<table>
+<thead>
+<tr>
+<th>月份</th>
+<th>核心任务</th>
+<th>交付物</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>M1</strong></td>
+<td><strong>知识基建</strong><br>- 构建皮肤病中西医知识图谱（证型-症状-方剂）<br>- 集成西医文献RAG库（教材+PubMed）<br>- 设计CoT推理模板（参考X-Ray-CoT思路）</td>
+<td>- Neo4j图谱（≥50节点）<br>- RAG检索测试集<br>- CoT提示词模板</td>
+</tr>
+<tr>
+<td><strong>M2</strong></td>
+<td><strong>核心引擎开发</strong><br>- 实现RAG + GraphRAG融合推理<br>- 微调LLM支持皮肤病CoT生成<br>- 搭建GAIL仿真环境（合成专家轨迹）</td>
+<td>- 可运行推理API<br>- CoT报告样例<br>- GAIL训练框架</td>
+</tr>
+<tr>
+<td><strong>M3</strong></td>
+<td><strong>系统集成与验证</strong><br>- 开发Web界面（实时建议+评估报告）<br>- 内部测试（5–10名医学生）<br>- 专家评审（2–3位中西医皮肤科医生）</td>
+<td>- MVP系统<br>- 用户反馈报告<br>- 评估指标（问诊覆盖率、建议采纳率等）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>✅ <strong>成功标准</strong>：系统能对湿疹/痤疮等病症的问诊过程提供合理建议，并生成可解释评估。</p>
+</blockquote>
+<hr>
+<h3 id="%E2%96%B6-phase-2%E5%A4%9A%E7%97%85%E7%A7%8D%E6%B3%9B%E5%8C%96%E4%B8%8E%E6%A1%86%E6%9E%B6%E5%9B%BA%E5%8C%96month-4%E2%80%938">▶ Phase 2：多病种泛化与框架固化（Month 4–8）</h3>
+<table>
+<thead>
+<tr>
+<th>月份</th>
+<th>核心任务</th>
+<th>交付物</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>M4</strong></td>
+<td><strong>扩展消化科</strong><br>- 构建消化系统知识图谱（如“肝郁脾虚→逍遥散”）<br>- 对齐西医诊断（如IBS、慢性胃炎）<br>- 复用并微调现有CoT/GAIL模块</td>
+<td>- 消化科知识库<br>- 跨病种CoT适配方案</td>
+</tr>
+<tr>
+<td><strong>M5</strong></td>
+<td><strong>扩展妇科</strong><br>- 构建妇科辨证体系（肾虚、血瘀、肝郁等）<br>- 整合激素检查、B超等西医指标<br>- 优化多智能体协调逻辑</td>
+<td>- 妇科知识库<br>- 多模态（文本+检查）融合策略</td>
+</tr>
+<tr>
+<td><strong>M6</strong></td>
+<td><strong>扩展儿科</strong><br>- 聚焦小儿常见病：感冒、咳嗽、厌食、积滞、夜啼<br>- 引入“小儿生理病理特点”（如“脾常不足”“肺常不足”）<br>- 构建家长代述 → 医生问诊的语义转换逻辑 <br>- 强化喂养史、生长发育史等关键问诊维度</td>
+<td>- 儿科知识库<br>- 家长-医生对话模块适配<br>-小儿辩证CoT模板</td>
+</tr>
+<tr>
+<td><strong>M7</strong></td>
+<td><strong>框架泛化与优化</strong><br>- 抽象“病种适配器”接口<br>- 支持一键切换科室<br>- 优化推理速度与建议精准度</td>
+<td>- 插件化架构文档<br>- 统一评估指标体系</td>
+</tr>
+<tr>
+<td><strong>M8</strong></td>
+<td><strong>综合测试与成果固化</strong><br>- 多科室交叉测试<br>- 编写技术白皮书<br>- 准备开源/论文/临床合作提案</td>
+<td>- 多病种演示系统<br>- 项目总结报告<br>- 扩展路线图（至全科）</td>
+</tr>
+</tbody>
+</table>
+<img src="timeline.png" width="200%" />
+<blockquote>
+<p>✅ <strong>成功标准</strong>：同一套系统可无缝支持皮肤病、消化科、妇科、儿科等疾病的问诊辅助，且各科评估指标达标。</p>
+</blockquote>
+<hr>
+<h2 id="6-%E5%85%B3%E9%94%AE%E7%AD%96%E7%95%A5%E4%BF%9D%E9%9A%9C%E6%B3%9B%E5%8C%96%E8%83%BD%E5%8A%9B">6. 关键策略保障泛化能力</h2>
+<ol>
+<li><strong>知识解耦</strong>：每个病种的知识图谱与RAG库独立存储，通过“病种上下文”动态加载；</li>
+<li><strong>CoT模板参数化</strong>：将“辨证维度”“关键问题集”“鉴别诊断列表”设为可配置项；</li>
+<li><strong>GAIL轨迹池共享</strong>：不同病种的专家轨迹统一格式，支持跨病种策略迁移；</li>
+<li><strong>评估指标标准化</strong>：定义通用维度（如“四诊完整性”“中西医整合度”），各科填充具体细则。</li>
+</ol>
+<hr>
+<h2 id="7-%E9%A2%84%E6%9C%9F%E6%88%90%E6%9E%9C">7. 预期成果</h2>
+<ul>
+<li><strong>技术成果</strong>：
+<ul>
+<li>1套支持多病种的中西医结合问诊辅助系统（Web端）</li>
+<li>4个专科知识库（皮肤病、消化、妇科、儿科）</li>
+<li>开源GraphRAG构建工具链（针对中医典籍）</li>
+</ul>
+</li>
+<li><strong>学术成果</strong>：
+<ul>
+<li>技术报告 / 会议论文（如AMIA、NeurIPS ML4H）</li>
+<li>可复现的CoT+GAIL医学问诊训练框架</li>
+</ul>
+</li>
+<li><strong>应用前景</strong>：
+<ul>
+<li>教学：用于中医院校临床技能训练</li>
+<li>临床：嵌入电子病历系统，辅助基层医生</li>
+</ul>
+</li>
+</ul>
+<hr>
+
+</body>
+</html>
