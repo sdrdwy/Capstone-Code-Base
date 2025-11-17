@@ -2,3 +2,7 @@ Data raw
 materials
 .env
 .DS_Store
+chroma_db_dash_w
+basic_app/__pycache__
+basic_app/chroma_db
+basic_app/chroma_db_embedding
