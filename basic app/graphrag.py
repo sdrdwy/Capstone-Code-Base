@@ -12,7 +12,7 @@ from langchain_community.embeddings import DashScopeEmbeddings
 
 from dotenv import load_dotenv
 load_dotenv()
-graph = Neo4jGraph(database='neo4j-2025-10-27t07-22-12')
+graph = Neo4jGraph(database='neo4j')
 llm = ChatTongyi(
     model="qwen-flash",        
     temperature=0,
@@ -30,6 +30,9 @@ CYPHER_GENERATION_TEMPLATE = """
 4. 对于病症遵循以下规则：皮肤病-[辨证为]->证型-[主症包括]->症状
 5. 证型-[治法为]->方剂-[用于治疗]->皮肤病
 问题：{question}
+你应该按照以下步骤：
+1. 按照皮肤病,证型,症状,方剂的分类从用户提问中提取出这些关键词
+2. 利用这些关键词来生成查询语句，要求尽可能简单并且严格遵循Cypher语法限制
 """
 
 cypher_prompt = PromptTemplate(
@@ -52,12 +55,16 @@ chain = GraphCypherQAChain.from_llm(
 
 prompt_query_fix = ChatPromptTemplate.from_template(
 """你是一个中医皮肤病领域专家，
-你现在需要协助把用户提出的问题中用到的可能的中医术语替换成上下文中查询到的术语最合适的，用于cypher的查询,
-并把替换后的问题返回出来注意回答是修正之后的提问，为不是回答的答案。
-注意：不能修改上下文中的内容，回答中替换后的文本一定是上下文中那块部分的原文
-例如：提问是“阴除湿汤可以用来治疗什么” 你要返回：“阴除湿汤加减可以用来治疗什么”
-
-上下文：
+你现在需要协助把用户提出的问题中用到的中医描述替换成关键词中的术语
+你必须保证替换后的关键词和术语中的完全一致
+你不能根据术语做过多的延伸解释
+你必须保证输出的关键词数量和提取出来的关键词数量完全一致
+你应该遵循以下步骤：
+1. 按照方剂,皮肤病,证型,症状的分类提取出关键词,注意,其中有一些分类的关键词可能没有,如果没有,那就不需要提取那个分类的关键词
+2. 必须把这些提取到的关键词替换成上下文中存在的文本
+3. 按照类别输出这些关键词,并严格遵循提取出来的顺序,并使用 '|'分隔不同类别的关键词
+4. 最后输出的格式为关键词: \n 替换关键词后的问题: 
+参考术语：
 {context}
 
 问题：
@@ -69,13 +76,13 @@ prompt_query_fix = ChatPromptTemplate.from_template(
 
 embedding = DashScopeEmbeddings(model="text-embedding-v2")
 vectorstore = Chroma(
-    persist_directory="basic app/chroma_db",
+    persist_directory="basic app/chroma_db_embedding",
     embedding_function=embedding
 )
 
 retriever = vectorstore.as_retriever(
     search_type = "similarity",
-    search_kwargs  = {"k":29}
+    search_kwargs  = {"k":10}
 )
 
 rag_chain = (
