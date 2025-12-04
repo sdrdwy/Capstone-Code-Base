@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 import os
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
+from .base_agent import BaseAgent
 
 load_dotenv()
 
@@ -83,8 +84,114 @@ class DeepModeClassifier(BaseTool):
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
+class WestAgent(BaseAgent):
+    """
+    西医知识检索Agent
+    """
+    
+    def __init__(self, llm, retriever, **kwargs):
+        super().__init__(llm, **kwargs)
+        self.retriever = retriever
+        self.setup_agent()
+        
+    def setup_agent(self):
+        """
+        设置agent的特定配置
+        """
+        # 提示模板已经定义在类外面，这里不需要重复定义
+        pass
+
+    def create_agent(self):
+        """创建医疗问答Agent"""
+        
+        def determine_agent_mode(state: AgentState) -> Dict[str, Any]:
+            """确定代理模式 - 只判断是否需要深度解析"""
+            deep_classifier = DeepModeClassifier(llm=self.llm)
+            use_deep = deep_classifier._run(state.user_input)
+            
+            agent_mode = "deep" if use_deep else "basic"
+            
+            return {
+                "agent_mode": agent_mode,
+                "use_deep": use_deep
+            }
+
+        def retrieve_context(state: AgentState) -> Dict[str, Any]:
+            """检索上下文"""
+            retrieved_docs = self.retriever.invoke(state.user_input)
+            context = format_docs(retrieved_docs)
+            
+            return {
+                "context": context,
+                "source_documents": retrieved_docs
+            }
+
+        def generate_response(state: AgentState) -> Dict[str, Any]:
+            """根据模式生成响应"""
+            input_data = {"context": state.context, "question": state.user_input}
+            
+            if state.agent_mode == "deep":
+                prompt_template = ChatPromptTemplate.from_messages([
+                    ("system", DEEP_PROMPT),
+                    ("human", "参考资料：\n{context}\n\n问题：{question}")
+                ])
+            else:  # basic
+                prompt_template = ChatPromptTemplate.from_messages([
+                    ("system", BASIC_PROMPT),
+                    ("human", "参考资料：\n{context}\n\n用户问题：{question}")
+                ])
+            
+            chain = prompt_template | self.llm | StrOutputParser()
+            result = chain.invoke(input_data)
+            
+            return {"result": result}
+
+        # 构建LangGraph
+        workflow = StateGraph(AgentState)
+        
+        # 添加节点
+        workflow.add_node("determine_mode", determine_agent_mode)
+        workflow.add_node("retrieve_context", retrieve_context)
+        workflow.add_node("generate_response", generate_response)
+        
+        # 设置入口点
+        workflow.set_entry_point("determine_mode")
+        
+        # 定义边
+        workflow.add_edge("determine_mode", "retrieve_context")
+        workflow.add_edge("retrieve_context", "generate_response")
+        workflow.add_edge("generate_response", END)
+        
+        # 编译图
+        return workflow.compile()
+
+    def query(self, user_query: str) -> Dict[str, Any]:
+        """
+        执行查询
+        """
+        agent = self.create_agent()
+        final_state = agent.invoke({
+            "user_input": user_query,
+            "agent_mode": "basic",
+            "context": "",
+            "result": "",
+            "source_documents": [],
+            "use_deep": False
+        })
+        
+        # 提取检索文档的原文内容
+        retrieved_docs_content = [doc.page_content for doc in final_state["source_documents"]]
+        
+        return {
+            "answer": final_state["result"],
+            "retrieved_docs": retrieved_docs_content,
+            "agent_mode": final_state["agent_mode"],
+            "use_deep": final_state["use_deep"]
+        }
+
+
 def create_medical_agent(llm, retriever):
-    """创建医疗问答Agent"""
+    """创建医疗问答Agent（传统函数接口，为了向后兼容）"""
     
     def determine_agent_mode(state: AgentState) -> Dict[str, Any]:
         """确定代理模式 - 只判断是否需要深度解析"""
