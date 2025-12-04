@@ -47,3 +47,10 @@ target/
 .pytest_cache/
 .mypy_cache/
 ```
+```
+
+#Other files
+Data raw
+materials
+chroma_db_dash_w
+basic_app/chroma_db_embedding
