@@ -22,7 +22,7 @@ from langchain_neo4j import Neo4jGraph
 from .agents.west_agent import WestAgent, medical_qa_pipeline
 from .agents.tcm_agent import TcmAgent
 from .agents.supervisor_agent import SupervisorAgent
-from .final_agent import FinalAgent
+from .agents.final_agent import FinalAgent
 from .utils.query_fix import fix_query
 
 
@@ -106,23 +106,38 @@ def run_diagnosis_system():
             
             print("\n正在分析您的症状...")
             
-            # 并行执行西医和中医查询
+            # 并行执行西医和中医查询，但要处理可能的异常
             print("🔍 正在进行西医知识检索...")
-            west_result = medical_qa_pipeline(
-                llm_choice="qwen-max",
-                vector_db_path="./chroma_db_dash_w",
-                user_query=user_input
-            )
+            west_response = "无结果"  # 默认值
+            try:
+                west_result = medical_qa_pipeline(
+                    llm_choice="qwen-max",
+                    vector_db_path="./chroma_db_dash_w",
+                    user_query=user_input
+                )
+                west_response = west_result['answer']
+            except Exception as e:
+                print(f"⚠️ 西医agent出现错误: {str(e)}，使用默认结果")
+                west_response = "无结果"
             
             print("🌿 正在进行中医知识图谱查询...")
-            # 首先修复查询
-            fixed_query_result = fix_query(user_input, llm, tcm_vectorstore, 10)
-            fixed_query = fixed_query_result['query']
-            # 然后进行图谱查询
-            tcm_result = tcm_agent.query(fixed_query)
-            
-            west_response = west_result['answer']
-            tcm_response = tcm_result['result']
+            tcm_response = "无结果"  # 默认值
+            try:
+                # 首先修复查询
+                fixed_query_result = fix_query(user_input, llm, tcm_vectorstore, 10)
+                fixed_query = fixed_query_result['query']
+                
+                # 限制查询语句长度
+                if len(fixed_query) > 100:  # 限制为100字符
+                    print("⚠️ 查询语句过长，已截断")
+                    fixed_query = fixed_query[:100]
+                
+                # 然后进行图谱查询
+                tcm_result = tcm_agent.query(fixed_query)
+                tcm_response = tcm_result['result']
+            except Exception as e:
+                print(f"⚠️ 中医agent出现错误: {str(e)}，使用默认结果")
+                tcm_response = "无结果"
             
             print("✅ 分析完成，正在整合信息...")
             
@@ -166,6 +181,18 @@ def run_diagnosis_system():
         
         except KeyboardInterrupt:
             print("\n\n程序被用户中断。")
+            print("\n" + "="*60)
+            print("问诊过程总结")
+            print("="*60)
+            
+            # 生成诊断过程分析
+            if final_agent.conversation_history:
+                analysis = final_agent.analyze_diagnosis_process()
+                print(f"\n📋 问诊过程分析与建议：")
+                print(analysis)
+            else:
+                print("没有问诊记录可以总结。")
+            
             break
         except Exception as e:
             print(f"\n❌ 发生错误: {str(e)}")
@@ -197,49 +224,66 @@ async def run_diagnosis_system_async():
             
             print("\n正在分析您的症状...")
             
-            # 异步并行执行西医和中医查询
+            # 异步并行执行西医和中医查询，但要处理可能的异常
             print("🔍 正在进行西医知识检索...")
-            west_task = asyncio.create_task(
-                asyncio.get_event_loop().run_in_executor(
-                    None, 
-                    medical_qa_pipeline,
-                    "qwen-max",
-                    "./chroma_db_dash_w",
-                    user_input
+            west_response = "无结果"  # 默认值
+            west_task = None
+            try:
+                west_task = asyncio.create_task(
+                    asyncio.get_event_loop().run_in_executor(
+                        None, 
+                        medical_qa_pipeline,
+                        "qwen-max",
+                        "./chroma_db_dash_w",
+                        user_input
+                    )
                 )
-            )
+                west_result = await west_task
+                west_response = west_result['answer']
+            except Exception as e:
+                print(f"⚠️ 西医agent出现错误: {str(e)}，使用默认结果")
+                west_response = "无结果"
             
             print("🌿 正在进行中医知识图谱查询...")
-            # 修复查询
-            fixed_query_task = asyncio.create_task(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    fix_query,
-                    user_input,
-                    llm,
-                    tcm_vectorstore,
-                    10
+            tcm_response = "无结果"  # 默认值
+            fixed_query_task = None
+            tcm_task = None
+            try:
+                # 修复查询
+                fixed_query_task = asyncio.create_task(
+                    asyncio.get_event_loop().run_in_executor(
+                        None,
+                        fix_query,
+                        user_input,
+                        llm,
+                        tcm_vectorstore,
+                        10
+                    )
                 )
-            )
-            
-            # 等待查询修复完成
-            fixed_query_result = await fixed_query_task
-            fixed_query = fixed_query_result['query']
-            
-            # 进行图谱查询
-            tcm_task = asyncio.create_task(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    tcm_agent.query,
-                    fixed_query
+                
+                # 等待查询修复完成
+                fixed_query_result = await fixed_query_task
+                fixed_query = fixed_query_result['query']
+                
+                # 限制查询语句长度
+                if len(fixed_query) > 100:  # 限制为100字符
+                    print("⚠️ 查询语句过长，已截断")
+                    fixed_query = fixed_query[:100]
+                
+                # 进行图谱查询
+                tcm_task = asyncio.create_task(
+                    asyncio.get_event_loop().run_in_executor(
+                        None,
+                        tcm_agent.query,
+                        fixed_query
+                    )
                 )
-            )
-            
-            # 等待两个查询完成
-            west_result, tcm_result = await asyncio.gather(west_task, tcm_task)
-            
-            west_response = west_result['answer']
-            tcm_response = tcm_result['result']
+                
+                tcm_result = await tcm_task
+                tcm_response = tcm_result['result']
+            except Exception as e:
+                print(f"⚠️ 中医agent出现错误: {str(e)}，使用默认结果")
+                tcm_response = "无结果"
             
             print("✅ 分析完成，正在整合信息...")
             
@@ -283,6 +327,18 @@ async def run_diagnosis_system_async():
         
         except KeyboardInterrupt:
             print("\n\n程序被用户中断。")
+            print("\n" + "="*60)
+            print("问诊过程总结")
+            print("="*60)
+            
+            # 生成诊断过程分析
+            if final_agent.conversation_history:
+                analysis = final_agent.analyze_diagnosis_process()
+                print(f"\n📋 问诊过程分析与建议：")
+                print(analysis)
+            else:
+                print("没有问诊记录可以总结。")
+            
             break
         except Exception as e:
             print(f"\n❌ 发生错误: {str(e)}")
