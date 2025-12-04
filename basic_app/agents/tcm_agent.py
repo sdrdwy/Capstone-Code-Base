@@ -57,16 +57,17 @@ class TcmAgent(BaseAgent):
         """
         创建TCM agent
         """
+        # 创建Cypher链，只返回生成的Cypher查询而不执行额外的总结
         chain = GraphCypherQAChain.from_llm(
             graph=self.graph,
             llm=self.llm,
             cypher_prompt=self.cypher_prompt,  
-            verbose=True,
+            verbose=False,  # 设置为False以减少额外输出
             allow_dangerous_requests=True,
             validate_cypher=True,
             fix_cypher=True, 
             max_fix_attempts=2,
-            # return_direct=True,
+            return_direct=True,  # 直接返回Cypher查询结果
         )
         return chain
 
@@ -74,9 +75,26 @@ class TcmAgent(BaseAgent):
         """
         执行查询
         """
+        # 限制查询语句长度
+        if len(query) > 100:
+            query = query[:100] + "..."
+        
         agent = self.create_agent()
-        response = agent.invoke({"query": query})
-        return response
+        try:
+            response = agent.invoke({"query": query})
+            
+            # 只返回链路信息，不返回总结
+            if isinstance(response, dict):
+                result = response.get('result', str(response))
+                generated_cypher = response.get('generated_cypher', response.get('cypher_query', ''))
+            else:
+                result = str(response)
+                generated_cypher = ''
+                
+            return {"result": result, "generated_cypher": generated_cypher}
+        except Exception as e:
+            # 如果查询出错，返回错误信息但不中断程序
+            return {"result": f"查询失败: {str(e)}", "generated_cypher": ""}
 
 
 def rag_query(graph, llm, query):

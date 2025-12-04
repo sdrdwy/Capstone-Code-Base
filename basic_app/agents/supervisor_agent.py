@@ -48,13 +48,28 @@ class SupervisorAgent(BaseAgent):
         """
         return self.supervision_prompt | self.llm | StrOutputParser()
     
-    def evaluate_conversation(self, conversation_history: str) -> Dict[str, Any]:
+    def evaluate_conversation(self, conversation_history: str, west_agent=None, tcm_agent=None, patient_input: str = "") -> Dict[str, Any]:
         """
         评估对话并决定是否提供建议
+        可以根据需要决定是否调用west_agent或tcm_agent
         """
+        # 首先评估是否需要调用额外的agent
+        if west_agent and tcm_agent and patient_input:
+            call_west, call_tcm = self._should_call_agents(patient_input, conversation_history)
+            
+            additional_info = ""
+            if call_west or call_tcm:
+                additional_info = "\n\n基于当前对话，建议补充查询："
+                if call_west:
+                    additional_info += "\n- 西医知识库查询"
+                if call_tcm:
+                    additional_info += "\n- 中医知识库查询"
+        else:
+            additional_info = ""
+        
         agent = self.create_agent()
         advice = agent.invoke({
-            "conversation_history": conversation_history
+            "conversation_history": conversation_history + additional_info
         })
         
         # 如果没有建议，返回空值
@@ -73,6 +88,44 @@ class SupervisorAgent(BaseAgent):
             "advice": advice if should_advise else None,
             "evaluation": advice if not should_advise else "问诊过程正常，无需干预"
         }
+    
+    def _should_call_agents(self, patient_input: str, conversation_history: str) -> tuple[bool, bool]:
+        """
+        决定supervisor是否应该调用west_agent或tcm_agent
+        返回 (call_west: bool, call_tcm: bool)
+        """
+        decision_prompt = f"""
+        作为中西医结合专家，请判断当前问诊过程中是否需要补充西医或中医知识查询。
+        
+        患者输入：{patient_input}
+        对话历史：{conversation_history}
+        
+        请返回一个JSON格式的结果，包含以下字段：
+        {{
+          "call_west": true/false,
+          "call_tcm": true/false
+        }}
+        
+        如果当前对话缺少西医相关知识，返回call_west为true。
+        如果当前对话缺少中医相关知识，返回call_tcm为true。
+        """
+        
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_core.output_parsers import StrOutputParser
+        import json
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("human", decision_prompt)
+        ])
+        
+        chain = prompt | self.llm | StrOutputParser()
+        response = chain.invoke({})
+        
+        try:
+            result = json.loads(response)
+            return result.get("call_west", False), result.get("call_tcm", False)
+        except:
+            return False, False
     
     def _should_advise(self, advice: str, conversation_history: str) -> bool:
         """

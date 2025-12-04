@@ -35,6 +35,49 @@ class FinalAgent:
         self.conversation_history = []
         self.setup_agent()
     
+    def should_call_agents(self, patient_input: str) -> tuple[bool, bool]:
+        """
+        决定是否调用west_agent或tcm_agent
+        返回 (call_west: bool, call_tcm: bool)
+        """
+        # 使用LLM来判断是否需要调用西医或中医agent
+        decision_prompt = f"""
+        作为中西医结合专家，请判断用户的问题是否需要调用西医知识库、中医知识库或两者都需要。
+        
+        用户输入：{patient_input}
+        对话历史：{"\n".join(self.conversation_history)}
+        
+        请返回一个JSON格式的结果，包含以下字段：
+        {{
+          "call_west": true/false,
+          "call_tcm": true/false
+        }}
+        
+        如果用户问题明确涉及西医术语或现代医学概念，返回call_west为true。
+        如果用户问题涉及中医术语、证型、方剂等，返回call_tcm为true。
+        如果问题涉及两者，返回两者都为true。
+        如果问题不涉及医学知识，返回两者都为false。
+        """
+        
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_core.output_parsers import StrOutputParser
+        import json
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("human", decision_prompt)
+        ])
+        
+        chain = prompt | self.llm | StrOutputParser()
+        response = chain.invoke({})
+        
+        try:
+            # 尝试解析JSON响应
+            result = json.loads(response)
+            return result.get("call_west", True), result.get("call_tcm", True)
+        except:
+            # 如果解析失败，返回默认值
+            return True, True
+    
     def setup_agent(self):
         """
         设置final agent的提示模板和相关配置
