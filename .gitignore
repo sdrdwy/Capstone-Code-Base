@@ -1,8 +1,36 @@
-Data raw
-materials
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Dependencies
+.venv/
+venv/
+env/
 .env
-.DS_Store
-chroma_db_dash_w
-basic_app/__pycache__
-basic_app/chroma_db
-basic_app/chroma_db_embedding
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+target/
+```
