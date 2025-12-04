@@ -37,7 +37,7 @@ class TcmAgent(BaseAgent):
         {schema}
 
         请严格遵守以下规则：
-        1. **节点匹配必须使用 `id` 属性进行精确匹配**，例如：`(n:皮肤病 {id: "扁平疣"})`
+        1. **节点匹配必须使用 `id` 属性进行精确匹配**
         2. 不要使用 `CONTAINS`、`=~` 或其他模糊匹配。
         3. 只返回 Cypher 查询语句，不要解释，不要 markdown，不要反引号。
         4. 对于病症遵循以下规则：皮肤病-[辨证为]->证型-[主症包括]->症状
@@ -89,7 +89,7 @@ def rag_query(graph, llm, query):
 
 if __name__ == "__main__":
     graph = Neo4jGraph(database=os.environ["DB_NAME"])
-    print(graph.schema)
+    # print(graph.schema)
     # exit(0)
     llm = ChatTongyi(
         model="qwen-max",        
@@ -105,7 +105,9 @@ if __name__ == "__main__":
     fixed = fix_query(query,llm,vectorstore,10)
     print(fixed['query'])
     fixed_query = fixed['query']
-    ret = rag_query(graph,llm,fixed_query)
+    # ret = rag_query(graph,llm,fixed_query)
+    Agent = TcmAgent(llm=llm,graph=graph)
+    ret = Agent.query(fixed_query)
     print(ret)
 
 
