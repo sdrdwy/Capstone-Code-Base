@@ -42,10 +42,12 @@ class TcmAgent(BaseAgent):
         3. 只返回 Cypher 查询语句，不要解释，不要 markdown，不要反引号。
         4. 对于病症遵循以下规则：皮肤病-[辨证为]->证型-[主症包括]->症状
         5. 证型-[治法为]->方剂-[用于治疗]->皮肤病
+        6. 查询语句长度不能超过100个字符
         问题：{question}
         你应该按照以下步骤：
         1. 按照皮肤病,证型,症状,方剂的分类从用户提问中提取出这些关键词
         2. 利用这些关键词来生成查询语句,要求尽可能简单并且严格遵循Cypher语法限制
+        3. 确保查询语句简洁，不超过100字符
         """
 
         self.cypher_prompt = PromptTemplate(
@@ -76,7 +78,23 @@ class TcmAgent(BaseAgent):
         """
         agent = self.create_agent()
         response = agent.invoke({"query": query})
-        return response
+        
+        # 只返回查询结果的链路，不返回额外的总结
+        result = response.get('result', '') if isinstance(response, dict) else str(response)
+        
+        # 提取实际的查询结果部分，去除额外的解释
+        if "以下是查询结果" in result:
+            # 提取实际的查询结果部分
+            start_idx = result.find("以下是查询结果")
+            result = result[start_idx:]
+        elif "结果：" in result or "结果:" in result:
+            # 提取结果部分
+            import re
+            match = re.search(r'[结果：:](.*)', result)
+            if match:
+                result = match.group(1).strip()
+        
+        return {"result": result}
 
 
 def rag_query(graph, llm, query):

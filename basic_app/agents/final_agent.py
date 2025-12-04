@@ -1,8 +1,9 @@
 from typing import Dict, Any, List
 from langchain_core.language_models import BaseLanguageModel
-from .agents.west_agent import WestAgent
-from .agents.tcm_agent import TcmAgent
-from .memory.conversation_memory import ConversationMemory
+from .base_agent import BaseAgent
+from .west_agent import WestAgent
+from .tcm_agent import TcmAgent
+from ..memory.conversation_memory import ConversationMemory
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from pydantic import BaseModel
@@ -21,19 +22,75 @@ class DiagnosisState(BaseModel):
     next_question: str
 
 
-class FinalAgent:
+class FinalAgent(BaseAgent):
     """
     Final Agent负责整合西医和中医的分析结果，
     并进行多轮对话问诊
     """
     
-    def __init__(self, llm: BaseLanguageModel, west_agent: WestAgent, tcm_agent: TcmAgent):
-        self.llm = llm
+    def __init__(self, llm: BaseLanguageModel, west_agent: WestAgent, tcm_agent: TcmAgent, **kwargs):
+        super().__init__(llm, **kwargs)
         self.west_agent = west_agent
         self.tcm_agent = tcm_agent
         self.memory = ConversationMemory()
         self.conversation_history = []
         self.setup_agent()
+    
+    def should_call_west_agent(self, patient_input: str, conversation_history: List[str] = None) -> bool:
+        """
+        决定是否调用西医agent
+        """
+        if conversation_history is None:
+            conversation_history = self.conversation_history
+            
+        history_str = "\n".join(conversation_history)
+        
+        decision_prompt = ChatPromptTemplate.from_messages([
+            ("system", """你是一个决策助手，负责判断当前问题是否需要调用西医知识库。
+            返回True表示需要调用西医agent，False表示不需要。
+            如果问题是关于症状、疾病、治疗方案等，通常需要调用西医agent。
+            如果问题主要涉及中医理论、中药、经络等，可能不需要调用西医agent。
+            只返回True或False，不要其他内容。"""),
+            ("human", f"""患者输入：{patient_input}
+
+对话历史：
+{history_str}
+
+是否需要调用西医agent？""")
+        ])
+        
+        chain = decision_prompt | self.llm | StrOutputParser()
+        response = chain.invoke({})
+        
+        return response.strip().lower() in ['true', 'yes', '是', '需要']
+    
+    def should_call_tcm_agent(self, patient_input: str, conversation_history: List[str] = None) -> bool:
+        """
+        决定是否调用中医agent
+        """
+        if conversation_history is None:
+            conversation_history = self.conversation_history
+            
+        history_str = "\n".join(conversation_history)
+        
+        decision_prompt = ChatPromptTemplate.from_messages([
+            ("system", """你是一个决策助手，负责判断当前问题是否需要调用中医知识库。
+            返回True表示需要调用中医agent，False表示不需要。
+            如果问题涉及中医理论、中药、辨证论治、体质等，通常需要调用中医agent。
+            如果问题纯粹是西医范畴，可能不需要调用中医agent。
+            只返回True或False，不要其他内容。"""),
+            ("human", f"""患者输入：{patient_input}
+
+对话历史：
+{history_str}
+
+是否需要调用中医agent？""")
+        ])
+        
+        chain = decision_prompt | self.llm | StrOutputParser()
+        response = chain.invoke({})
+        
+        return response.strip().lower() in ['true', 'yes', '是', '需要']
     
     def setup_agent(self):
         """
@@ -81,6 +138,12 @@ class FinalAgent:
             请给出分析和建议：
             """)
         ])
+
+    def create_agent(self):
+        """
+        创建agent的实现方法（这里只是满足BaseAgent的抽象方法要求）
+        """
+        return self.diagnosis_prompt | self.llm | StrOutputParser()
     
     def integrate_responses(self, patient_input: str, west_response: str, tcm_response: str) -> str:
         """

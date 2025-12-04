@@ -42,6 +42,46 @@ class SupervisorAgent(BaseAgent):
             """)
         ])
     
+    def should_call_west_agent(self, conversation_history: str) -> bool:
+        """
+        决定是否调用西医agent
+        """
+        decision_prompt = ChatPromptTemplate.from_messages([
+            ("system", """你是一个决策助手，负责判断当前问诊过程是否需要调用西医知识库来辅助诊断。
+            返回True表示需要调用西医agent，False表示不需要。
+            如果当前症状或问题可能需要西医诊断或治疗建议，返回True。
+            只返回True或False，不要其他内容。"""),
+            ("human", f"""当前问诊对话记录：
+{conversation_history}
+
+是否需要调用西医agent？""")
+        ])
+        
+        chain = decision_prompt | self.llm | StrOutputParser()
+        response = chain.invoke({})
+        
+        return response.strip().lower() in ['true', 'yes', '是', '需要']
+    
+    def should_call_tcm_agent(self, conversation_history: str) -> bool:
+        """
+        决定是否调用中医agent
+        """
+        decision_prompt = ChatPromptTemplate.from_messages([
+            ("system", """你是一个决策助手，负责判断当前问诊过程是否需要调用中医知识库来辅助诊断。
+            返回True表示需要调用中医agent，False表示不需要。
+            如果当前症状或问题可能需要中医辨证论治或中药建议，返回True。
+            只返回True或False，不要其他内容。"""),
+            ("human", f"""当前问诊对话记录：
+{conversation_history}
+
+是否需要调用中医agent？""")
+        ])
+        
+        chain = decision_prompt | self.llm | StrOutputParser()
+        response = chain.invoke({})
+        
+        return response.strip().lower() in ['true', 'yes', '是', '需要']
+    
     def create_agent(self):
         """
         创建supervisor agent
