@@ -120,3 +120,74 @@ class SupervisorAgent(BaseAgent):
         
         chain = guidance_prompt | self.llm | StrOutputParser()
         return chain.invoke({})
+    
+    def decide_agent_usage(self, patient_input: str, conversation_history: str) -> Dict[str, bool]:
+        """
+        决定是否需要调用west_agent或tcm_agent
+        """
+        decision_prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+            你是一个智能决策助手，负责决定在当前问诊情况下是否需要调用西医知识库(west_agent)或中医知识库(tcm_agent)。
+            根据患者输入和对话历史，判断最合适的知识库组合。
+            """),
+            ("human", """
+            患者输入：{patient_input}
+            对话历史：{conversation_history}
+            
+            请决定是否需要调用：
+            1. 西医知识库 (west_agent) - 对应 should_call_west
+            2. 中医知识库 (tcm_agent) - 对应 should_call_tcm
+            
+            请以JSON格式返回，包含以下字段：
+            {
+                "should_call_west": true/false,
+                "should_call_tcm": true/false
+            }
+            
+            判断依据：
+            - 如果问题涉及现代医学、病理机制、西药、实验室检查等，应调用西医知识库
+            - 如果问题涉及中医理论、证型、中药、经络等，应调用中医知识库
+            - 如果问题比较综合或需要中西医结合，可以同时调用两个知识库
+            - 如果问题很基础或已有足够信息，可以不调用任何知识库
+            """)
+        ])
+        
+        chain = decision_prompt | self.llm | StrOutputParser()
+        decision_result = chain.invoke({
+            "patient_input": patient_input,
+            "conversation_history": conversation_history
+        })
+        
+        # 解析决策结果，这里简单处理，实际中可能需要更复杂的JSON解析
+        should_call_west = "should_call_west\": true" in decision_result.lower() or "\"west\": true" in decision_result.lower()
+        should_call_tcm = "should_call_tcm\": true" in decision_result.lower() or "\"tcm\": true" in decision_result.lower()
+        
+        return {
+            "should_call_west": should_call_west,
+            "should_call_tcm": should_call_tcm
+        }
+    
+    def generate_summary(self, conversation_history: str) -> str:
+        """
+        在程序中断时自动生成问诊过程总结
+        """
+        summary_prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+            你是一个中西医结合专家，需要对当前的问诊过程进行总结。
+            请提供以下内容：
+            1. 问诊过程概述
+            2. 已收集的主要症状和信息
+            3. 初步的诊断方向或考虑
+            4. 尚未明确的问题或需要进一步询问的内容
+            5. 后续建议
+            """),
+            ("human", """
+            问诊对话记录：
+            {conversation_history}
+            
+            请生成问诊过程总结：
+            """)
+        ])
+        
+        chain = summary_prompt | self.llm | StrOutputParser()
+        return chain.invoke({"conversation_history": conversation_history})

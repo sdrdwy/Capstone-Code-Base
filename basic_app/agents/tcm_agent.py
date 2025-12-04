@@ -42,10 +42,12 @@ class TcmAgent(BaseAgent):
         3. 只返回 Cypher 查询语句，不要解释，不要 markdown，不要反引号。
         4. 对于病症遵循以下规则：皮肤病-[辨证为]->证型-[主症包括]->症状
         5. 证型-[治法为]->方剂-[用于治疗]->皮肤病
+        6. 查询语句必须简洁，长度不超过100个字符，避免复杂的嵌套查询
         问题：{question}
         你应该按照以下步骤：
         1. 按照皮肤病,证型,症状,方剂的分类从用户提问中提取出这些关键词
         2. 利用这些关键词来生成查询语句,要求尽可能简单并且严格遵循Cypher语法限制
+        3. 生成简洁的查询，避免过长的查询语句
         """
 
         self.cypher_prompt = PromptTemplate(
@@ -74,9 +76,36 @@ class TcmAgent(BaseAgent):
         """
         执行查询
         """
-        agent = self.create_agent()
-        response = agent.invoke({"query": query})
-        return response
+        try:
+            agent = self.create_agent()
+            response = agent.invoke({"query": query})
+            
+            # 提取结果中的链路信息，去除总结性文本
+            if isinstance(response, dict) and "result" in response:
+                result = response["result"]
+                # 如果结果包含链路信息，只返回链路部分
+                if "cypher" in str(response).lower() or "关系" in str(result) or "-" in str(result):
+                    # 提取图谱中的关系链路信息
+                    return {"result": result, "chain_links": self._extract_chain_links(result)}
+                else:
+                    return {"result": result, "chain_links": []}
+            else:
+                # 如果不是预期格式，直接返回
+                return {"result": str(response), "chain_links": []}
+        except Exception as e:
+            # 如果出现错误，返回空结果而不是中断程序
+            return {"result": "", "chain_links": [], "error": str(e)}
+
+    def _extract_chain_links(self, result: str):
+        """
+        从结果中提取链路信息
+        """
+        # 简单提取包含关系的信息
+        import re
+        # 查找类似 "皮肤病-[辨证为]->证型" 的模式
+        pattern = r'([^-]+)-\[([^\]]+)\]->([^-]+)'
+        matches = re.findall(pattern, result)
+        return matches
 
 
 def rag_query(graph, llm, query):
