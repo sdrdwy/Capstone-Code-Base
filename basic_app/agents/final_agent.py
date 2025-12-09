@@ -24,73 +24,17 @@ class DiagnosisState(BaseModel):
 
 class FinalAgent(BaseAgent):
     """
-    Final Agent负责整合西医和中医的分析结果，
-    并进行多轮对话问诊
+    Final Agent负责模拟医生角色，
+    仅由supervisor_agent调用，不直接调用其他agent
     """
     
-    def __init__(self, llm: BaseLanguageModel, west_agent: WestAgent, tcm_agent: TcmAgent, **kwargs):
+    def __init__(self, llm: BaseLanguageModel, **kwargs):
         super().__init__(llm, **kwargs)
-        self.west_agent = west_agent
-        self.tcm_agent = tcm_agent
         self.memory = ConversationMemory()
         self.conversation_history = []
         self.setup_agent()
     
-    def should_call_west_agent(self, patient_input: str, conversation_history: List[str] = None) -> bool:
-        """
-        决定是否调用西医agent
-        """
-        if conversation_history is None:
-            conversation_history = self.conversation_history
-            
-        history_str = "\n".join(conversation_history)
-        
-        decision_prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个决策助手，负责判断当前问题是否需要调用西医知识库。
-            返回True表示需要调用西医agent，False表示不需要。
-            如果问题是关于症状、疾病、治疗方案等，通常需要调用西医agent。
-            如果问题主要涉及中医理论、中药、经络等，可能不需要调用西医agent。
-            只返回True或False，不要其他内容。"""),
-            ("human", f"""患者输入：{patient_input}
 
-对话历史：
-{history_str}
-
-是否需要调用西医agent？""")
-        ])
-        
-        chain = decision_prompt | self.llm | StrOutputParser()
-        response = chain.invoke({})
-        
-        return response.strip().lower() in ['true', 'yes', '是', '需要']
-    
-    def should_call_tcm_agent(self, patient_input: str, conversation_history: List[str] = None) -> bool:
-        """
-        决定是否调用中医agent
-        """
-        if conversation_history is None:
-            conversation_history = self.conversation_history
-            
-        history_str = "\n".join(conversation_history)
-        
-        decision_prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个决策助手，负责判断当前问题是否需要调用中医知识库。
-            返回True表示需要调用中医agent，False表示不需要。
-            如果问题涉及中医理论、中药、辨证论治、体质等，通常需要调用中医agent。
-            如果问题纯粹是西医范畴，可能不需要调用中医agent。
-            只返回True或False，不要其他内容。"""),
-            ("human", f"""患者输入：{patient_input}
-
-对话历史：
-{history_str}
-
-是否需要调用中医agent？""")
-        ])
-        
-        chain = decision_prompt | self.llm | StrOutputParser()
-        response = chain.invoke({})
-        
-        return response.strip().lower() in ['true', 'yes', '是', '需要']
     
     def setup_agent(self):
         """
@@ -99,9 +43,8 @@ class FinalAgent(BaseAgent):
         self.diagnosis_prompt = ChatPromptTemplate.from_messages([
             ("system", """
             你是一个资深的中西医结合医生，正在为患者进行问诊。
-            你将结合西医和中医的分析结果，对患者进行多轮问诊。
             请遵循以下原则：
-            1. 先根据现有信息分析可能的疾病方向
+            1. 先根据患者主诉分析可能的疾病方向
             2. 提出针对性的问题来进一步确认诊断
             3. 结合西医的病理机制分析和中医的辨证论治思想
             4. 保持专业、耐心、关怀的态度
@@ -111,8 +54,7 @@ class FinalAgent(BaseAgent):
             ("human", """
             患者主诉：{patient_input}
             
-            西医分析：{west_response}
-            中医分析：{tcm_response}
+            supervisor的建议（如果有的话）：{supervisor_advice}
             
             之前的对话历史：
             {conversation_history}
@@ -145,9 +87,9 @@ class FinalAgent(BaseAgent):
         """
         return self.diagnosis_prompt | self.llm | StrOutputParser()
     
-    def integrate_responses(self, patient_input: str, west_response: str, tcm_response: str) -> str:
+    def integrate_responses(self, patient_input: str, supervisor_advice: str = None) -> str:
         """
-        整合西医和中医的响应，形成初步的问诊策略
+        根据supervisor的建议，形成问诊策略
         """
         chain = self.diagnosis_prompt | self.llm | StrOutputParser()
         
@@ -155,19 +97,18 @@ class FinalAgent(BaseAgent):
         
         response = chain.invoke({
             "patient_input": patient_input,
-            "west_response": west_response,
-            "tcm_response": tcm_response,
+            "supervisor_advice": supervisor_advice if supervisor_advice else "无建议",
             "conversation_history": history_str
         })
         
         return response
     
-    def process_input(self, patient_input: str, west_response: str, tcm_response: str) -> Dict[str, Any]:
+    def process_input(self, patient_input: str, supervisor_advice: str = None) -> Dict[str, Any]:
         """
         处理输入并返回问诊响应
         """
-        # 整合两个agent的响应
-        response = self.integrate_responses(patient_input, west_response, tcm_response)
+        # 根据supervisor的建议生成响应
+        response = self.integrate_responses(patient_input, supervisor_advice)
         
         # 更新对话历史
         self.conversation_history.append(f"患者: {patient_input}")

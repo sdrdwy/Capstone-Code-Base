@@ -1,7 +1,13 @@
-```
 # Compiled and build artifacts
 *.pyc
 __pycache__/
+*.o
+*.obj
+*.out
+*.class
+*.dll
+*.so
+*.a
 
 # Dependencies
 .venv/
@@ -10,14 +16,15 @@ node_modules/
 dist/
 build/
 target/
-.gradle/
 .mypy_cache/
 .pytest_cache/
+.gradle/
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
+*.swo
 
 # Environment
 .env
@@ -27,8 +34,10 @@ target/
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# System files
+# System
 .DS_Store
 Thumbs.db
 
@@ -60,10 +69,3 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-```
-
-#Other files
-Data raw
-materials
-chroma_db_dash_w
-basic_app/chroma_db_embedding

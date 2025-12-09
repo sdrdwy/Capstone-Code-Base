@@ -127,7 +127,7 @@ class WestAgent(BaseAgent):
             }
 
         def generate_response(state: AgentState) -> Dict[str, Any]:
-            """根据模式生成响应"""
+            """根据模式生成响应，为每句话添加来源索引"""
             input_data = {"context": state.context, "question": state.user_input}
             
             if state.agent_mode == "deep":
@@ -142,9 +142,12 @@ class WestAgent(BaseAgent):
                 ])
             
             chain = prompt_template | self.llm | StrOutputParser()
-            result = chain.invoke(input_data)
+            raw_result = chain.invoke(input_data)
             
-            return {"result": result}
+            # 为每句话添加来源索引
+            result_with_sources = self._add_source_indices(raw_result, state.source_documents)
+            
+            return {"result": result_with_sources}
 
         # 构建LangGraph
         workflow = StateGraph(AgentState)
@@ -164,6 +167,53 @@ class WestAgent(BaseAgent):
         
         # 编译图
         return workflow.compile()
+
+    def _add_source_indices(self, text: str, source_documents) -> str:
+        """
+        为生成的文本每句话添加来源索引
+        """
+        if not source_documents:
+            return text
+            
+        # 将文本按句子分割
+        sentences = []
+        current_sentence = ""
+        
+        # 按标点符号分割句子
+        for char in text:
+            current_sentence += char
+            if char in ['。', '！', '？', '\n']:
+                if current_sentence.strip():
+                    sentences.append(current_sentence.strip())
+                    current_sentence = ""
+        
+        # 如果最后还有未处理的句子
+        if current_sentence.strip():
+            sentences.append(current_sentence.strip())
+        
+        # 为每个句子找到最相关的文档来源
+        indexed_sentences = []
+        for sentence in sentences:
+            # 简单的关键词匹配来确定来源
+            best_match_idx = 0
+            max_matches = 0
+            
+            for idx, doc in enumerate(source_documents):
+                # 计算句子中的关键词在文档中出现的次数
+                doc_content = doc.page_content.lower()
+                sentence_words = sentence.lower().split()
+                
+                matches = sum(1 for word in sentence_words if len(word) > 2 and word in doc_content)
+                
+                if matches > max_matches:
+                    max_matches = matches
+                    best_match_idx = idx
+            
+            # 添加来源索引标记
+            indexed_sentence = f"{sentence}[来源: 文档{best_match_idx + 1}]"
+            indexed_sentences.append(indexed_sentence)
+        
+        return " ".join(indexed_sentences)
 
     def query(self, user_query: str) -> Dict[str, Any]:
         """

@@ -21,6 +21,7 @@ from langchain_neo4j import Neo4jGraph
 
 from .agents.west_agent import WestAgent, medical_qa_pipeline
 from .agents.tcm_agent import TcmAgent
+from .agents.tcm_rag_agent import TcmRagAgent
 from .agents.supervisor_agent import SupervisorAgent
 from .agents.final_agent import FinalAgent
 from .utils.query_fix import fix_query
@@ -64,17 +65,27 @@ def initialize_components():
         graph=graph
     )
     
-    final_agent = FinalAgent(
+    # 初始化中医RAG Agent
+    tcm_rag_agent = TcmRagAgent(
         llm=llm,
-        west_agent=west_agent,
-        tcm_agent=tcm_agent
+        retriever=tcm_vectorstore.as_retriever(search_kwargs={"k": 3})
     )
     
+    # final_agent不再需要west_agent和tcm_agent
+    final_agent = FinalAgent(
+        llm=llm
+    )
+    
+    # Pass the agents to supervisor_agent so it can call them
     supervisor_agent = SupervisorAgent(llm=llm)
+    # Store references to the agents so supervisor can call them
+    supervisor_agent.west_agent = west_agent
+    supervisor_agent.tcm_agent = tcm_agent
+    supervisor_agent.tcm_rag_agent = tcm_rag_agent
     
     print("系统初始化完成！\n")
     
-    return llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore
+    return llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore, tcm_rag_agent
 
 
 def run_diagnosis_system():
@@ -86,8 +97,12 @@ def run_diagnosis_system():
     print("输入 'reset' 重置对话")
     print("-"*60)
     
+    # 询问用户是否希望看到专家建议
+    show_supervisor_advice = input("是否希望看到专家的建议？(y/n，默认为y): ").strip().lower()
+    show_supervisor_advice = show_supervisor_advice in ['y', 'yes', '是', 'Y', '']
+    
     # 初始化组件
-    llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore = initialize_components()
+    llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore, tcm_rag_agent = initialize_components()
     
     while True:
         try:
@@ -139,25 +154,69 @@ def run_diagnosis_system():
                 print(f"⚠️ 中医agent出现错误: {str(e)}，使用默认结果")
                 tcm_response = "无结果"
             
+            print("🌿 正在进行中医RAG检索...")
+            tcm_rag_response = "无结果"  # 默认值
+            try:
+                # 使用tcm_rag_agent进行检索
+                tcm_rag_result = tcm_rag_agent.query(user_input)
+                tcm_rag_response = tcm_rag_result['answer']
+            except Exception as e:
+                print(f"⚠️ 中医RAG agent出现错误: {str(e)}，使用默认结果")
+                tcm_rag_response = "无结果"
+            
+            # 合并中医知识图谱和RAG的结果
+            combined_tcm_response = f"知识图谱结果：{tcm_response}\nRAG结果：{tcm_rag_response}"
+            
             print("✅ 分析完成，正在整合信息...")
+            
+            # supervisor_agent评估对话并决定是否提供建议
+            conversation_history = "\n".join(final_agent.conversation_history)
+            supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
+            
+            # 根据开关决定是否将建议传递给final_agent
+            supervisor_advice = None
+            if supervision_result['should_advise'] and supervision_result['advice']:
+                supervisor_advice = supervision_result['advice']
+                if show_supervisor_advice:
+                    print(f"\n🎓 专家建议: {supervision_result['advice']}")
             
             # 交给final_agent处理
             final_response = final_agent.process_input(
                 patient_input=user_input,
-                west_response=west_response,
-                tcm_response=tcm_response
+                supervisor_advice=supervisor_advice
             )
             
             # 获取医生回复
             doctor_response = final_response['response']
             print(f"\n👨‍⚕️ 医生: {doctor_response}")
             
-            # supervisor_agent评估对话并决定是否提供建议
-            conversation_history = "\n".join(final_agent.conversation_history)
-            supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
+            # 如果supervisor需要调用其他agent来获取额外信息，可以在这里处理
+            # 例如，根据对话历史决定是否需要额外的西医或中医咨询
+            should_call_west = supervisor_agent.should_call_west_agent(conversation_history + f"\n患者最新输入: {user_input}")
+            should_call_tcm = supervisor_agent.should_call_tcm_agent(conversation_history + f"\n患者最新输入: {user_input}")
             
-            if supervision_result['should_advise'] and supervision_result['advice']:
-                print(f"\n🎓 专家建议: {supervision_result['advice']}")
+            additional_info = []
+            if should_call_west:
+                print("🔍 专家正在调用西医知识库获取更多信息...")
+                west_additional = supervisor_agent.call_west_agent(user_input)
+                additional_info.append(f"西医建议: {west_additional}")
+            
+            if should_call_tcm:
+                print("🌿 专家正在调用中医知识库获取更多信息...")
+                tcm_additional = supervisor_agent.call_tcm_agent(user_input)
+                additional_info.append(f"中医建议: {tcm_additional}")
+                
+            # 检查是否需要调用tcm_rag_agent
+            should_call_tcm_rag = len(conversation_history) > 50  # 假设对话历史较长时需要额外的RAG信息
+            if should_call_tcm_rag:
+                print("🌿 专家正在调用中医RAG知识库获取更多信息...")
+                tcm_rag_additional = supervisor_agent.call_tcm_rag_agent(user_input)
+                additional_info.append(f"中医RAG建议: {tcm_rag_additional}")
+            
+            # 显示额外信息（如果需要）
+            if additional_info and show_supervisor_advice:
+                for info in additional_info:
+                    print(f"\n🔬 {info}")
             
             # 检查是否结束对话
             if final_response['is_ended']:
@@ -208,8 +267,12 @@ async def run_diagnosis_system_async():
     print("提示：输入 'quit' 或 'exit' 退出系统")
     print("-"*60)
     
+    # 询问用户是否希望看到专家建议
+    show_supervisor_advice = input("是否希望看到专家的建议？(y/n，默认为y): ").strip().lower()
+    show_supervisor_advice = show_supervisor_advice in ['y', 'yes', '是', 'Y', '']
+    
     # 初始化组件
-    llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore = initialize_components()
+    llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore, tcm_rag_agent = initialize_components()
     
     while True:
         try:
@@ -285,25 +348,76 @@ async def run_diagnosis_system_async():
                 print(f"⚠️ 中医agent出现错误: {str(e)}，使用默认结果")
                 tcm_response = "无结果"
             
+            print("🌿 正在进行中医RAG检索...")
+            tcm_rag_response = "无结果"  # 默认值
+            try:
+                # 使用tcm_rag_agent进行检索
+                tcm_rag_task = asyncio.create_task(
+                    asyncio.get_event_loop().run_in_executor(
+                        None,
+                        tcm_rag_agent.query,
+                        user_input
+                    )
+                )
+                tcm_rag_result = await tcm_rag_task
+                tcm_rag_response = tcm_rag_result['answer']
+            except Exception as e:
+                print(f"⚠️ 中医RAG agent出现错误: {str(e)}，使用默认结果")
+                tcm_rag_response = "无结果"
+            
+            # 合并中医知识图谱和RAG的结果
+            combined_tcm_response = f"知识图谱结果：{tcm_response}\nRAG结果：{tcm_rag_response}"
+            
             print("✅ 分析完成，正在整合信息...")
+            
+            # supervisor_agent评估对话并决定是否提供建议
+            conversation_history = "\n".join(final_agent.conversation_history)
+            supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
+            
+            # 根据开关决定是否将建议传递给final_agent
+            supervisor_advice = None
+            if supervision_result['should_advise'] and supervision_result['advice']:
+                supervisor_advice = supervision_result['advice']
+                if show_supervisor_advice:
+                    print(f"\n🎓 专家建议: {supervision_result['advice']}")
             
             # 交给final_agent处理
             final_response = final_agent.process_input(
                 patient_input=user_input,
-                west_response=west_response,
-                tcm_response=tcm_response
+                supervisor_advice=supervisor_advice
             )
             
             # 获取医生回复
             doctor_response = final_response['response']
             print(f"\n👨‍⚕️ 医生: {doctor_response}")
             
-            # supervisor_agent评估对话并决定是否提供建议
-            conversation_history = "\n".join(final_agent.conversation_history)
-            supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
+            # 如果supervisor需要调用其他agent来获取额外信息，可以在这里处理
+            # 例如，根据对话历史决定是否需要额外的西医或中医咨询
+            should_call_west = supervisor_agent.should_call_west_agent(conversation_history + f"\n患者最新输入: {user_input}")
+            should_call_tcm = supervisor_agent.should_call_tcm_agent(conversation_history + f"\n患者最新输入: {user_input}")
             
-            if supervision_result['should_advise'] and supervision_result['advice']:
-                print(f"\n🎓 专家建议: {supervision_result['advice']}")
+            additional_info = []
+            if should_call_west:
+                print("🔍 专家正在调用西医知识库获取更多信息...")
+                west_additional = supervisor_agent.call_west_agent(user_input)
+                additional_info.append(f"西医建议: {west_additional}")
+            
+            if should_call_tcm:
+                print("🌿 专家正在调用中医知识库获取更多信息...")
+                tcm_additional = supervisor_agent.call_tcm_agent(user_input)
+                additional_info.append(f"中医建议: {tcm_additional}")
+                
+            # 检查是否需要调用tcm_rag_agent
+            should_call_tcm_rag = len(conversation_history) > 50  # 假设对话历史较长时需要额外的RAG信息
+            if should_call_tcm_rag:
+                print("🌿 专家正在调用中医RAG知识库获取更多信息...")
+                tcm_rag_additional = supervisor_agent.call_tcm_rag_agent(user_input)
+                additional_info.append(f"中医RAG建议: {tcm_rag_additional}")
+            
+            # 显示额外信息（如果需要）
+            if additional_info and show_supervisor_advice:
+                for info in additional_info:
+                    print(f"\n🔬 {info}")
             
             # 检查是否结束对话
             if final_response['is_ended']:
