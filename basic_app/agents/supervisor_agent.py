@@ -43,45 +43,17 @@ class SupervisorAgent(BaseAgent):
             """)
         ])
     
-    def should_call_west_agent(self, conversation_history: str) -> bool:
+    def always_call_west_agent(self, conversation_history: str) -> bool:
         """
-        决定是否调用西医agent
+        默认总是调用西医agent
         """
-        decision_prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个决策助手，负责判断当前问诊过程是否需要调用西医知识库来辅助诊断。
-            返回True表示需要调用西医agent，False表示不需要。
-            如果当前症状或问题可能需要西医诊断或治疗建议，返回True。
-            只返回True或False，不要其他内容。"""),
-            ("human", f"""当前问诊对话记录：
-{conversation_history}
-
-是否需要调用西医agent？""")
-        ])
-        
-        chain = decision_prompt | self.llm | StrOutputParser()
-        response = chain.invoke({})
-        
-        return response.strip().lower() in ['true', 'yes', '是', '需要']
+        return True
     
-    def should_call_tcm_agent(self, conversation_history: str) -> bool:
+    def always_call_tcm_agent(self, conversation_history: str) -> bool:
         """
-        决定是否调用中医agent
+        默认总是调用中医agent
         """
-        decision_prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个决策助手，负责判断当前问诊过程是否需要调用中医知识库来辅助诊断。
-            返回True表示需要调用中医agent，False表示不需要。
-            如果当前症状或问题可能需要中医辨证论治或中药建议，返回True。
-            只返回True或False，不要其他内容。"""),
-            ("human", f"""当前问诊对话记录：
-{conversation_history}
-
-是否需要调用中医agent？""")
-        ])
-        
-        chain = decision_prompt | self.llm | StrOutputParser()
-        response = chain.invoke({})
-        
-        return response.strip().lower() in ['true', 'yes', '是', '需要']
+        return True
     
     def create_agent(self):
         """
@@ -255,4 +227,28 @@ class SupervisorAgent(BaseAgent):
         ])
         
         chain = analysis_prompt | self.llm | StrOutputParser()
+        return chain.invoke({})
+
+    def provide_realtime_assistance(self, patient_input: str, conversation_history: str) -> str:
+        """
+        提供实时的问诊辅助
+        """
+        assistance_prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+            你是一个中西医结合专家，正在为问诊过程提供实时辅助。
+            请根据患者的输入和对话历史，提供专业的问诊指导。
+            """),
+            ("human", f"""
+            患者最新输入：{patient_input}
+            对话历史：{conversation_history}
+            
+            请提供以下内容：
+            1. 问诊方向建议
+            2. 需要注意的症状点
+            3. 可能的诊断方向
+            4. 后续问诊重点
+            """)
+        ])
+        
+        chain = assistance_prompt | self.llm | StrOutputParser()
         return chain.invoke({})
