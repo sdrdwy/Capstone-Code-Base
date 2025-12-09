@@ -1,6 +1,7 @@
 import gradio as gr
 import time  
-import tcm_agent, query_fix, west_agent
+from basic_app.agents import tcm_agent, west_agent
+from basic_app.utils import query_fix
 import dotenv
 dotenv.load_dotenv()
 import os
