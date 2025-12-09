@@ -63,23 +63,7 @@ class FinalAgent(BaseAgent):
             """)
         ])
         
-        self.analysis_prompt = ChatPromptTemplate.from_messages([
-            ("system", """
-            你是一个中西医结合专家，负责分析整个问诊过程。
-            请从以下角度分析：
-            1. 问诊思路是否清晰合理
-            2. 问诊流程是否完整
-            3. 是否有重要信息遗漏
-            4. 给出改进建议
-            5. 对整个问诊过程进行打分（1-10分）
-            """),
-            ("human", """
-            完整问诊对话记录：
-            {full_conversation}
-            
-            请给出分析和建议：
-            """)
-        ])
+
 
     def create_agent(self):
         """
@@ -127,18 +111,7 @@ class FinalAgent(BaseAgent):
         end_keywords = ["结束", "完成", "建议就医", "需要面诊", "诊断完成", "请到医院", "需要检查"]
         return any(keyword in response for keyword in end_keywords)
     
-    def analyze_diagnosis_process(self) -> str:
-        """
-        分析整个诊断过程并给出评价
-        """
-        full_conversation = "\n".join(self.conversation_history)
-        
-        chain = self.analysis_prompt | self.llm | StrOutputParser()
-        analysis = chain.invoke({
-            "full_conversation": full_conversation
-        })
-        
-        return analysis
+
     
     def reset_conversation(self):
         """
