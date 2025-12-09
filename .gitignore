@@ -49,3 +49,10 @@ dist/
 build/
 *.egg-info/
 ```
+
+#Other
+chroma_TCM_rag_db_qwen
+Data raw 
+materials
+chroma_db_dash_w
+basic_app/chroma_db_embedding

@@ -53,6 +53,11 @@ def initialize_components():
         embedding_function=embedding
     )
     
+    tcm_rag_vectorstore = Chroma(
+        persist_directory="./chroma_TCM_rag_db_qwen",
+        embedding_function=embedding
+    )
+
     # 初始化各Agent
     west_agent = WestAgent(
         llm=llm,
@@ -67,7 +72,7 @@ def initialize_components():
     # 初始化中医RAG Agent
     tcm_rag_agent = TcmRagAgent(
         llm=llm,
-        retriever=tcm_vectorstore.as_retriever(search_kwargs={"k": 3})
+        retriever=tcm_rag_vectorstore.as_retriever(search_kwargs={"k": 3})
     )
     
     # final_agent不再需要west_agent和tcm_agent
@@ -176,8 +181,7 @@ def run_diagnosis_system():
             supervisor_advice = None
             if supervision_result['should_advise'] and supervision_result['advice']:
                 supervisor_advice = supervision_result['advice']
-                print(f"
-🎓 专家建议: {supervision_result['advice']}")
+                print(f"🎓 专家建议: {supervision_result['advice']}")
             
             # 根据开关决定final_agent是否能理解建议（即是否传递给final_agent）
             if not show_supervisor_advice:
@@ -224,35 +228,29 @@ def run_diagnosis_system():
             
             # 检查是否结束对话
             if final_response['is_ended']:
-                print("
-" + "="*60)
+                print("" + "="*60)
                 print("问诊结束")
                 print("="*60)
                 
                 # 生成诊断总结
                 summary = supervisor_agent.generate_final_summary(conversation_history)
-                print(f"
-📋 问诊总结报告：")
+                print(f"📋 问诊总结报告：")
                 print(summary)
                 
                 # 如果用户选择查看专家建议，也显示分析
                 if show_supervisor_advice:
                     analysis = supervisor_agent.analyze_diagnosis_process(conversation_history)
-                    print(f"
-🔍 专家分析与评价：")
+                    print(f"🔍 专家分析与评价：")
                     print(analysis)
                 
                 # 询问是否开始新对话
-                continue_diag = input("
-是否开始新的问诊？(y/n): ").strip().lower()
+                continue_diag = input("是否开始新的问诊？(y/n): ").strip().lower()
                 if continue_diag not in ['y', 'yes', '是', 'Y']:
-                    print("
-感谢使用中西医结合问诊系统，祝您健康！")
+                    print("感谢使用中西医结合问诊系统，祝您健康！")
                     break
                 else:
                     final_agent.reset_conversation()
-                    print("
-新问诊开始，请描述您的症状...")
+                    print("新问诊开始，请描述您的症状...")
         
         except KeyboardInterrupt:
             print("\n\n程序被用户中断。")
@@ -263,8 +261,7 @@ def run_diagnosis_system():
             # 生成诊断总结
             if final_agent.conversation_history:
                 summary = supervisor_agent.generate_final_summary(conversation_history)
-                print(f"
-📋 问诊总结报告：")
+                print(f"📋 问诊总结报告：")
                 print(summary)
             else:
                 print("没有问诊记录可以总结。")
