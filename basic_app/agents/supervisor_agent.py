@@ -3,6 +3,7 @@ from langchain_core.language_models import BaseLanguageModel
 from .base_agent import BaseAgent
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+import asyncio
 
 
 class SupervisorAgent(BaseAgent):
@@ -135,7 +136,52 @@ class SupervisorAgent(BaseAgent):
             return False
         
         return contains_important
-    
+
+    def call_west_agent(self, query: str, graph_results: str = "") -> str:
+        """
+        调用西医agent获取诊断建议
+        """
+        if hasattr(self, 'west_agent') and self.west_agent:
+            try:
+                # 调用西医agent
+                west_result = self.west_agent.query(query)
+                return west_result.get('answer', '无结果')
+            except Exception as e:
+                print(f"调用西医agent出错: {str(e)}")
+                return "西医agent暂时无法提供结果"
+        else:
+            return "西医agent未初始化"
+
+    def call_tcm_agent(self, query: str, graph_results: str = "") -> str:
+        """
+        调用中医agent获取诊断建议
+        """
+        if hasattr(self, 'tcm_agent') and self.tcm_agent:
+            try:
+                # 调用中医agent
+                tcm_result = self.tcm_agent.query(query)
+                return tcm_result.get('result', '无结果')
+            except Exception as e:
+                print(f"调用中医agent出错: {str(e)}")
+                return "中医agent暂时无法提供结果"
+        else:
+            return "中医agent未初始化"
+
+    def call_tcm_rag_agent(self, query: str, rag_context: str = "") -> str:
+        """
+        调用中医RAG agent获取诊断建议
+        """
+        if hasattr(self, 'tcm_rag_agent') and self.tcm_rag_agent:
+            try:
+                # 调用中医RAG agent
+                tcm_rag_result = self.tcm_rag_agent.query(query)
+                return tcm_rag_result.get('answer', '无结果')
+            except Exception as e:
+                print(f"调用中医RAG agent出错: {str(e)}")
+                return "中医RAG agent暂时无法提供结果"
+        else:
+            return "中医RAG agent未初始化"
+
     def provide_guidance(self, current_diagnosis: str, symptoms: str, conversation_history: str) -> str:
         """
         提供具体的指导建议
