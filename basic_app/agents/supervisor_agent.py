@@ -206,3 +206,28 @@ class SupervisorAgent(BaseAgent):
         
         chain = guidance_prompt | self.llm | StrOutputParser()
         return chain.invoke({})
+
+    def analyze_diagnosis_process(self, conversation_history: str) -> str:
+        """
+        分析整个诊断过程并给出评价
+        """
+        analysis_prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+            你是一个中西医结合专家，负责分析整个问诊过程。
+            请从以下角度分析：
+            1. 问诊思路是否清晰合理
+            2. 问诊流程是否完整
+            3. 是否有重要信息遗漏
+            4. 给出改进建议
+            5. 对整个问诊过程进行打分（1-10分）
+            """),
+            ("human", f"""
+            完整问诊对话记录：
+            {conversation_history}
+            
+            请给出分析和建议：
+            """)
+        ])
+        
+        chain = analysis_prompt | self.llm | StrOutputParser()
+        return chain.invoke({})

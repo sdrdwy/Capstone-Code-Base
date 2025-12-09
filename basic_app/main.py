@@ -173,12 +173,17 @@ def run_diagnosis_system():
             conversation_history = "\n".join(final_agent.conversation_history)
             supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
             
-            # 根据开关决定是否将建议传递给final_agent
+                        # 用户总是能看到建议
             supervisor_advice = None
             if supervision_result['should_advise'] and supervision_result['advice']:
                 supervisor_advice = supervision_result['advice']
-                if show_supervisor_advice:
-                    print(f"\n🎓 专家建议: {supervision_result['advice']}")
+                print(f"
+🎓 专家建议: {supervision_result['advice']}")
+            
+            # 根据开关决定final_agent是否能理解建议（即是否传递给final_agent）
+            if not show_supervisor_advice:
+                # 如果开关关闭，则final_agent接收不到建议
+                supervisor_advice = None
             
             # 交给final_agent处理
             final_response = final_agent.process_input(
@@ -225,7 +230,7 @@ def run_diagnosis_system():
                 print("="*60)
                 
                 # 生成诊断过程分析
-                analysis = final_agent.analyze_diagnosis_process()
+                analysis = supervisor_agent.analyze_diagnosis_process(conversation_history)
                 print(f"\n📋 问诊过程分析与建议：")
                 print(analysis)
                 
@@ -246,7 +251,7 @@ def run_diagnosis_system():
             
             # 生成诊断过程分析
             if final_agent.conversation_history:
-                analysis = final_agent.analyze_diagnosis_process()
+                analysis = supervisor_agent.analyze_diagnosis_process(conversation_history)
                 print(f"\n📋 问诊过程分析与建议：")
                 print(analysis)
             else:
@@ -374,12 +379,17 @@ async def run_diagnosis_system_async():
             conversation_history = "\n".join(final_agent.conversation_history)
             supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
             
-            # 根据开关决定是否将建议传递给final_agent
+                        # 用户总是能看到建议
             supervisor_advice = None
             if supervision_result['should_advise'] and supervision_result['advice']:
                 supervisor_advice = supervision_result['advice']
-                if show_supervisor_advice:
-                    print(f"\n🎓 专家建议: {supervision_result['advice']}")
+                print(f"
+🎓 专家建议: {supervision_result['advice']}")
+            
+            # 根据开关决定final_agent是否能理解建议（即是否传递给final_agent）
+            if not show_supervisor_advice:
+                # 如果开关关闭，则final_agent接收不到建议
+                supervisor_advice = None
             
             # 交给final_agent处理
             final_response = final_agent.process_input(
@@ -426,7 +436,7 @@ async def run_diagnosis_system_async():
                 print("="*60)
                 
                 # 生成诊断过程分析
-                analysis = final_agent.analyze_diagnosis_process()
+                analysis = supervisor_agent.analyze_diagnosis_process(conversation_history)
                 print(f"\n📋 问诊过程分析与建议：")
                 print(analysis)
                 
@@ -447,7 +457,7 @@ async def run_diagnosis_system_async():
             
             # 生成诊断过程分析
             if final_agent.conversation_history:
-                analysis = final_agent.analyze_diagnosis_process()
+                analysis = supervisor_agent.analyze_diagnosis_process(conversation_history)
                 print(f"\n📋 问诊过程分析与建议：")
                 print(analysis)
             else:
