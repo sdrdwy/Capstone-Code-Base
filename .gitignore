@@ -1,20 +1,15 @@
 ```
-# Compiled and build artifacts
-*.pyc
+# Backup files
+*.backup
+
+# Python
 __pycache__/
-*.o
-*.obj
-*.out
+*.pyc
+*.pyo
+*.pyd
 
-# Dependencies
-.venv/
-venv/
-node_modules/
-
-# Logs and temp files
+# Logs
 *.log
-*.tmp
-*.swp
 
 # Environment
 .env
@@ -27,32 +22,13 @@ node_modules/
 *.swp
 *.swo
 
-# System files
-.DS_Store
-Thumbs.db
+# Dependencies
+venv/
+.venv/
+node_modules/
 
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Python specific
-*.pyc
-__pycache__/
-*.pyo
-*.pyd
-.Python
-*.so
-
-# Build directories
+# Build artifacts
 dist/
 build/
-*.egg-info/
+target/
 ```
-
-#Other
-chroma_TCM_rag_db_qwen
-Data raw 
-materials
-chroma_db_dash_w
-basic_app/chroma_db_embedding

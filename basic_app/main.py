@@ -173,35 +173,32 @@ def run_diagnosis_system():
             
             print("✅ 分析完成，正在整合信息...")
             
-            # supervisor_agent评估对话并决定是否提供建议
             conversation_history = "\n".join(final_agent.conversation_history)
-            supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
             
-                        # 用户总是能看到建议
-            supervisor_advice = None
-            if supervision_result['should_advise'] and supervision_result['advice']:
-                supervisor_advice = supervision_result['advice']
-                print(f"🎓 专家建议: {supervision_result['advice']}")
+            # supervisor实时提供问诊辅助
+            realtime_assistance = supervisor_agent.provide_realtime_assistance(
+                patient_input=user_input,
+                conversation_history=conversation_history
+            )
             
             # 根据开关决定final_agent是否能理解建议（即是否传递给final_agent）
             if not show_supervisor_advice:
                 # 如果开关关闭，则final_agent接收不到建议
-                supervisor_advice = None
+                realtime_assistance = None
             
             # 交给final_agent处理
             final_response = final_agent.process_input(
                 patient_input=user_input,
-                supervisor_advice=supervisor_advice
+                supervisor_advice=realtime_assistance
             )
             
             # 获取医生回复
             doctor_response = final_response['response']
             print(f"\n👨‍⚕️ 医生: {doctor_response}")
             
-            # 如果supervisor需要调用其他agent来获取额外信息，可以在这里处理
-            # 例如，根据对话历史决定是否需要额外的西医或中医咨询
-            should_call_west = supervisor_agent.should_call_west_agent(conversation_history + f"\n患者最新输入: {user_input}")
-            should_call_tcm = supervisor_agent.should_call_tcm_agent(conversation_history + f"\n患者最新输入: {user_input}")
+            # supervisor默认总是调用tcm和west_agent来获取额外信息
+            should_call_west = supervisor_agent.always_call_west_agent(conversation_history + f"\n患者最新输入: {user_input}")
+            should_call_tcm = supervisor_agent.always_call_tcm_agent(conversation_history + f"\n患者最新输入: {user_input}")
             
             additional_info = []
             if should_call_west:
