@@ -73,16 +73,16 @@ class TcmRagAgent(BaseAgent):
         """
         from langgraph.graph import StateGraph, END
         from langchain_core.tools import BaseTool
-        from langchain_core.pydantic_v1 import Field
+        from pydantic import Field
         
         # 工具 - 使用LLM判断是否需要深度解析
         class DeepModeClassifier(BaseTool):
             name: str = Field(default="tcm_deep_mode_classifier")
             description: str = Field(default="使用LLM判断中医问题是否需要深度思考模式")
-            llm: Any = Field(exclude=True)
+            llm: Any = Field(exclude=True)  # 声明 llm 为可输入字段，但不包含在序列化中
 
             def __init__(self, llm, **data):
-                super().__init__(llm=llm, **data)
+                super().__init__(llm=llm, **data) # 调用父类初始化时传入 llm
 
             def _run(self, question: str) -> bool:
                 classification_prompt = ChatPromptTemplate.from_messages([
