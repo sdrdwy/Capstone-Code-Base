@@ -207,6 +207,31 @@ class SupervisorAgent(BaseAgent):
         chain = guidance_prompt | self.llm | StrOutputParser()
         return chain.invoke({})
 
+    def generate_final_summary(self, conversation_history: str) -> str:
+        """
+        生成最终的诊断总结，包括诊断过程分析和建议
+        """
+        summary_prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+            你是一个中西医结合专家，负责对整个问诊过程进行总结。
+            请提供以下内容：
+            1. 问诊过程的简要回顾
+            2. 主要症状和可能的诊断方向
+            3. 问诊过程中发现的关键信息
+            4. 最终的诊断建议和注意事项
+            5. 对后续诊疗的建议
+            """),
+            ("human", f"""
+            完整问诊对话记录：
+            {conversation_history}
+            
+            请生成完整的诊断总结：
+            """)
+        ])
+        
+        chain = summary_prompt | self.llm | StrOutputParser()
+        return chain.invoke({})
+
     def analyze_diagnosis_process(self, conversation_history: str) -> str:
         """
         分析整个诊断过程并给出评价
