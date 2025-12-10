@@ -125,13 +125,13 @@ def run_diagnosis_system(enable_advice = True):
             print(f"\n👨‍⚕️ 医生: {doctor_response}")
             
             # supervisor_agent评估对话并决定是否提供建议
-            conversation_history = "\n".join(final_agent.conversation_history)
+            conversation_history = final_agent.conversation_history
 
 
             fixed_query = fix_query(user_input,llm,tcm_vectorstore,10)['query']
 
-            west_response = west_agent.query(user_input)
-            tcm_response = tcm_agent.query(fixed_query)
+            west_response = west_agent.query(user_input,conversation_history)
+            tcm_response = tcm_agent.query(fixed_query,conversation_history)
 
             supervision_result = supervisor_agent.evaluate_conversation(conversation_history,
                                                                         tcm_response['result'],

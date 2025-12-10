@@ -22,34 +22,28 @@ class AgentState(BaseModel):
     result: str
     source_documents: List[Any]
     use_deep: bool
+    history: Any
 
 # 提示模板
-BASIC_PROMPT = """你是一位经验丰富的皮肤科临床辅助诊疗专家，正在辅助不同背景的用户理解皮肤病相关知识。
-用户可能是医学生、住院医师、普通患者或医学爱好者。
-请根据问题中隐含的专业程度，自动调整回答的深度与术语使用：
-- 若问题包含专业术语或机制探讨，可使用规范医学术语，并简要解释关键概念；
-- 若问题偏向症状描述或日常护理，请用通俗易懂的语言，避免 jargon；
-- 始终保持尊重、耐心与同理心，不假设、不标签用户身份；
-- 基于提供的上下文作答，若信息不足，请说明'现有资料较少，我将尽我所能为你解释'，并且根据你的原有知识作答；
-- 回答需简洁，聚焦核心信息，避免冗长；
-- 在回答末尾，用开放式提问引导用户深入探讨"""
+BASIC_PROMPT = """你是一个专业的评估专家，你对医生的问诊建议需要参考以下问诊流程：
+1. **主诉**：请患者用一句话说明最主要问题（如“脸红痒3天”）。
+2. **现病史**：围绕皮损的起病时间、部位、形态（红斑/水疱/鳞屑等）、演变、诱因、缓解因素、伴随症状（痒/痛/发热等）及既往治疗反应。
+3. **既往史**：询问皮肤病史、系统性疾病（如糖尿病、自身免疫病）、药物过敏史。
+4. **个人史**：职业、接触物（化学品/宠物/新护肤品）、生活习惯、旅行或性行为史（如相关）。
+5. **家族史**：直系亲属有无类似皮肤病或遗传性皮肤疾病。
+6. **系统回顾**：关注关节、口腔、眼睛、淋巴结等有无异常。
+7. **皮肤检查引导**：请患者描述皮损外观、分布（对称？曝光区？）、是否扩散。
+8. **初步判断与建议**：综合信息后给出可能诊断、是否需检查（如真菌镜检、活检）、治疗建议及随访计划。"""
 
-DEEP_PROMPT = """你现在进入深度诊疗辅助模式。请按照用户要求作答，保证回答用户的所有问题
-如果用户没有格式要求，就请严格遵循临床思维链（Chain of Thought）进行结构化分析，
-基于提供的参考资料，按以下逻辑顺序逐步推导并回答问题：
-1. **核心问题识别**：明确用户所问疾病的名称或核心症状。
-2. **病理机制**：简述现代医学的病理生理基础。
-3. **典型临床表现**：列出关键体征、症状特点及好发部位。
-4. **鉴别诊断要点**：指出需与哪些常见皮肤病区分，并说明关键鉴别特征。
-5. **诊疗建议**：
-   - 一线治疗方案（如外用/系统药物）；
-   - 生活调护：日常注意事项或避免诱因。
-6. **知识边界说明**：若参考资料不足以覆盖上述任一环节，请明确指出'现有资料未提及XX部分'。
-
-要求：
-- 使用规范医学术语，但对关键概念（如'Th17通路'）需简要解释；
-- 逻辑清晰，分点陈述，避免冗长段落；
-- 结尾提出一个值得深入探讨的临床问题"""
+DEEP_PROMPT = """你是一个专业的评估专家，你对医生的问诊建议需要参考以下问诊流程：
+1. **主诉**：请患者用一句话说明最主要问题（如“脸红痒3天”）。
+2. **现病史**：围绕皮损的起病时间、部位、形态（红斑/水疱/鳞屑等）、演变、诱因、缓解因素、伴随症状（痒/痛/发热等）及既往治疗反应。
+3. **既往史**：询问皮肤病史、系统性疾病（如糖尿病、自身免疫病）、药物过敏史。
+4. **个人史**：职业、接触物（化学品/宠物/新护肤品）、生活习惯、旅行或性行为史（如相关）。
+5. **家族史**：直系亲属有无类似皮肤病或遗传性皮肤疾病。
+6. **系统回顾**：关注关节、口腔、眼睛、淋巴结等有无异常。
+7. **皮肤检查引导**：请患者描述皮损外观、分布（对称？曝光区？）、是否扩散。
+8. **初步判断与建议**：综合信息后给出可能诊断、是否需检查（如真菌镜检、活检）、治疗建议及随访计划。"""
 
 # 工具 - 使用LLM判断是否需要深度解析
 class DeepModeClassifier(BaseTool):
@@ -128,18 +122,12 @@ class WestAgent(BaseAgent):
 
         def generate_response(state: AgentState) -> Dict[str, Any]:
             """根据模式生成响应"""
-            input_data = {"context": state.context, "question": state.user_input}
+            input_data = {"context": state.context, "question": state.user_input, "history":state.history}
             
-            if state.agent_mode == "deep":
-                prompt_template = ChatPromptTemplate.from_messages([
-                    ("system", DEEP_PROMPT),
-                    ("human", "参考资料：\n{context}\n\n问题：{question}")
-                ])
-            else:  # basic
-                prompt_template = ChatPromptTemplate.from_messages([
-                    ("system", BASIC_PROMPT),
-                    ("human", "参考资料：\n{context}\n\n用户问题：{question}")
-                ])
+            prompt_template = ChatPromptTemplate.from_messages([
+                ("system", DEEP_PROMPT),
+                ("human", "参考资料：\n{context}\n\n问题：{question}\n\n前文问诊对话记录{history}")
+            ])
             
             chain = prompt_template | self.llm | StrOutputParser()
             result = chain.invoke(input_data)
@@ -165,7 +153,7 @@ class WestAgent(BaseAgent):
         # 编译图
         return workflow.compile()
 
-    def query(self, user_query: str) -> Dict[str, Any]:
+    def query(self, user_query: str, history) -> Dict[str, Any]:
         """
         执行查询
         """
@@ -176,7 +164,8 @@ class WestAgent(BaseAgent):
             "context": "",
             "result": "",
             "source_documents": [],
-            "use_deep": False
+            "use_deep": True,
+            "history":history
         })
         
         # 提取检索文档的原文内容
