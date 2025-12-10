@@ -11,7 +11,6 @@
 6. 在对话结束后，给出总结、打分和改进建议
 """
 
-import asyncio
 import os
 from dotenv import load_dotenv
 from langchain_community.chat_models import ChatTongyi
@@ -44,30 +43,39 @@ def initialize_components():
     
     # 初始化向量数据库
     embedding = DashScopeEmbeddings(model="text-embedding-v2")
+    embedding_v3 = DashScopeEmbeddings(model = "text-embedding-v3")
     west_vectorstore = Chroma(
         persist_directory="./chroma_db_dash_w",
         embedding_function=embedding
     )
     tcm_vectorstore = Chroma(
         persist_directory="basic_app/chroma_db_embedding",
-        embedding_function=embedding
+        embedding_function=embedding,
+        
     )
     
+    tcm_med_vectorstore = Chroma(
+        persist_directory="chroma_TCM_rag_db_qwen",
+        embedding_function=embedding_v3,
+        collection_name="medical_book_qwen"
+    )
+
     # 初始化各Agent
     west_agent = WestAgent(
         llm=llm,
-        retriever=west_vectorstore.as_retriever(search_kwargs={"k": 3})
+        retriever=west_vectorstore.as_retriever()
     )
     
     tcm_agent = TcmAgent(
         llm=llm,
-        graph=graph
+        graph=graph,
+        retriever=tcm_med_vectorstore.as_retriever()
     )
     
     final_agent = FinalAgent(
         llm=llm,
-        west_agent=west_agent,
-        tcm_agent=tcm_agent
+        # west_agent=west_agent,
+        # tcm_agent=tcm_agent
     )
     
     supervisor_agent = SupervisorAgent(llm=llm)
@@ -77,7 +85,7 @@ def initialize_components():
     return llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore
 
 
-def run_diagnosis_system():
+def run_diagnosis_system(enable_advice = True):
     """运行诊断系统主循环"""
     print("="*60)
     print("欢迎使用中西医结合智能问诊系统")
@@ -88,7 +96,7 @@ def run_diagnosis_system():
     
     # 初始化组件
     llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore = initialize_components()
-    
+    supervision_advice = ""
     while True:
         try:
             # 获取用户输入
@@ -106,46 +114,10 @@ def run_diagnosis_system():
             
             print("\n正在分析您的症状...")
             
-            # 并行执行西医和中医查询，但要处理可能的异常
-            print("🔍 正在进行西医知识检索...")
-            west_response = "无结果"  # 默认值
-            try:
-                west_result = medical_qa_pipeline(
-                    llm_choice="qwen-max",
-                    vector_db_path="./chroma_db_dash_w",
-                    user_query=user_input
-                )
-                west_response = west_result['answer']
-            except Exception as e:
-                print(f"⚠️ 西医agent出现错误: {str(e)}，使用默认结果")
-                west_response = "无结果"
-            
-            print("🌿 正在进行中医知识图谱查询...")
-            tcm_response = "无结果"  # 默认值
-            try:
-                # 首先修复查询
-                fixed_query_result = fix_query(user_input, llm, tcm_vectorstore, 10)
-                fixed_query = fixed_query_result['query']
-                
-                # 限制查询语句长度
-                if len(fixed_query) > 100:  # 限制为100字符
-                    print("⚠️ 查询语句过长，已截断")
-                    fixed_query = fixed_query[:100]
-                
-                # 然后进行图谱查询
-                tcm_result = tcm_agent.query(fixed_query)
-                tcm_response = tcm_result['result']
-            except Exception as e:
-                print(f"⚠️ 中医agent出现错误: {str(e)}，使用默认结果")
-                tcm_response = "无结果"
-            
-            print("✅ 分析完成，正在整合信息...")
-            
             # 交给final_agent处理
             final_response = final_agent.process_input(
                 patient_input=user_input,
-                west_response=west_response,
-                tcm_response=tcm_response
+                advice=supervision_advice
             )
             
             # 获取医生回复
@@ -154,8 +126,20 @@ def run_diagnosis_system():
             
             # supervisor_agent评估对话并决定是否提供建议
             conversation_history = "\n".join(final_agent.conversation_history)
-            supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
+
+
+            fixed_query = fix_query(user_input,llm,tcm_vectorstore,10)['query']
+
+            west_response = west_agent.query(user_input)
+            tcm_response = tcm_agent.query(fixed_query)
+
+            supervision_result = supervisor_agent.evaluate_conversation(conversation_history,
+                                                                        tcm_response['result'],
+                                                                        west_response['result'])
             
+            if enable_advice == True:
+                supervision_advice = supervision_result
+            else: False
             if supervision_result['should_advise'] and supervision_result['advice']:
                 print(f"\n🎓 专家建议: {supervision_result['advice']}")
             
@@ -166,7 +150,7 @@ def run_diagnosis_system():
                 print("="*60)
                 
                 # 生成诊断过程分析
-                analysis = final_agent.analyze_diagnosis_process()
+                analysis = supervisor_agent.analyze_diagnosis_process(final_agent.conversation_history)
                 print(f"\n📋 问诊过程分析与建议：")
                 print(analysis)
                 
@@ -187,7 +171,7 @@ def run_diagnosis_system():
             
             # 生成诊断过程分析
             if final_agent.conversation_history:
-                analysis = final_agent.analyze_diagnosis_process()
+                analysis = supervisor_agent.analyze_diagnosis_process(final_agent.conversation_history)
                 print(f"\n📋 问诊过程分析与建议：")
                 print(analysis)
             else:
@@ -199,157 +183,12 @@ def run_diagnosis_system():
             print("请重试或联系系统管理员。")
             continue
 
-
-async def run_diagnosis_system_async():
-    """异步版本的诊断系统"""
-    print("="*60)
-    print("欢迎使用中西医结合智能问诊系统 (异步版)")
-    print("="*60)
-    print("提示：输入 'quit' 或 'exit' 退出系统")
-    print("-"*60)
-    
-    # 初始化组件
-    llm, west_agent, tcm_agent, final_agent, supervisor_agent, tcm_vectorstore = initialize_components()
-    
-    while True:
-        try:
-            # 获取用户输入
-            user_input = input("\n患者: ").strip()
-            
-            if user_input.lower() in ['quit', 'exit', '退出']:
-                print("\n感谢使用中西医结合问诊系统，祝您健康！")
-                break
-            elif not user_input:
-                continue
-            
-            print("\n正在分析您的症状...")
-            
-            # 异步并行执行西医和中医查询，但要处理可能的异常
-            print("🔍 正在进行西医知识检索...")
-            west_response = "无结果"  # 默认值
-            west_task = None
-            try:
-                west_task = asyncio.create_task(
-                    asyncio.get_event_loop().run_in_executor(
-                        None, 
-                        medical_qa_pipeline,
-                        "qwen-max",
-                        "./chroma_db_dash_w",
-                        user_input
-                    )
-                )
-                west_result = await west_task
-                west_response = west_result['answer']
-            except Exception as e:
-                print(f"⚠️ 西医agent出现错误: {str(e)}，使用默认结果")
-                west_response = "无结果"
-            
-            print("🌿 正在进行中医知识图谱查询...")
-            tcm_response = "无结果"  # 默认值
-            fixed_query_task = None
-            tcm_task = None
-            try:
-                # 修复查询
-                fixed_query_task = asyncio.create_task(
-                    asyncio.get_event_loop().run_in_executor(
-                        None,
-                        fix_query,
-                        user_input,
-                        llm,
-                        tcm_vectorstore,
-                        10
-                    )
-                )
-                
-                # 等待查询修复完成
-                fixed_query_result = await fixed_query_task
-                fixed_query = fixed_query_result['query']
-                
-                # 限制查询语句长度
-                if len(fixed_query) > 100:  # 限制为100字符
-                    print("⚠️ 查询语句过长，已截断")
-                    fixed_query = fixed_query[:100]
-                
-                # 进行图谱查询
-                tcm_task = asyncio.create_task(
-                    asyncio.get_event_loop().run_in_executor(
-                        None,
-                        tcm_agent.query,
-                        fixed_query
-                    )
-                )
-                
-                tcm_result = await tcm_task
-                tcm_response = tcm_result['result']
-            except Exception as e:
-                print(f"⚠️ 中医agent出现错误: {str(e)}，使用默认结果")
-                tcm_response = "无结果"
-            
-            print("✅ 分析完成，正在整合信息...")
-            
-            # 交给final_agent处理
-            final_response = final_agent.process_input(
-                patient_input=user_input,
-                west_response=west_response,
-                tcm_response=tcm_response
-            )
-            
-            # 获取医生回复
-            doctor_response = final_response['response']
-            print(f"\n👨‍⚕️ 医生: {doctor_response}")
-            
-            # supervisor_agent评估对话并决定是否提供建议
-            conversation_history = "\n".join(final_agent.conversation_history)
-            supervision_result = supervisor_agent.evaluate_conversation(conversation_history)
-            
-            if supervision_result['should_advise'] and supervision_result['advice']:
-                print(f"\n🎓 专家建议: {supervision_result['advice']}")
-            
-            # 检查是否结束对话
-            if final_response['is_ended']:
-                print("\n" + "="*60)
-                print("问诊结束")
-                print("="*60)
-                
-                # 生成诊断过程分析
-                analysis = final_agent.analyze_diagnosis_process()
-                print(f"\n📋 问诊过程分析与建议：")
-                print(analysis)
-                
-                # 询问是否开始新对话
-                continue_diag = input("\n是否开始新的问诊？(y/n): ").strip().lower()
-                if continue_diag not in ['y', 'yes', '是', 'Y']:
-                    print("\n感谢使用中西医结合问诊系统，祝您健康！")
-                    break
-                else:
-                    final_agent.reset_conversation()
-                    print("\n新问诊开始，请描述您的症状...")
-        
-        except KeyboardInterrupt:
-            print("\n\n程序被用户中断。")
-            print("\n" + "="*60)
-            print("问诊过程总结")
-            print("="*60)
-            
-            # 生成诊断过程分析
-            if final_agent.conversation_history:
-                analysis = final_agent.analyze_diagnosis_process()
-                print(f"\n📋 问诊过程分析与建议：")
-                print(analysis)
-            else:
-                print("没有问诊记录可以总结。")
-            
-            break
-        except Exception as e:
-            print(f"\n❌ 发生错误: {str(e)}")
-            print("请重试或联系系统管理员。")
-            continue
 
 
 if __name__ == "__main__":
     # 选择运行同步或异步版本
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "--async":
-        asyncio.run(run_diagnosis_system_async())
+    if "--disable" in sys.argv:
+        run_diagnosis_system(enable_advice=True)
     else:
-        run_diagnosis_system()
+        run_diagnosis_system(enable_advice=False)

@@ -15,6 +15,8 @@ class SupervisorAgent(BaseAgent):
         super().__init__(llm, **kwargs)
         self.setup_agent()
         self.supervision_count = 0  # 记录监督次数
+        self.advice_memory = []
+
         
     def setup_agent(self):
         """
@@ -22,7 +24,7 @@ class SupervisorAgent(BaseAgent):
         """
         self.supervision_prompt = ChatPromptTemplate.from_messages([
             ("system", """
-            你是一个资深的中西医结合专家，负责监督和指导问诊过程。
+            你是一个资深的中西医结合专家你在和一个中医和西医专家一起监督和指导问诊过程。
             你的职责是：
             1. 分析当前的问诊对话是否合理
             2. 识别可能的诊断疏漏或错误
@@ -33,6 +35,10 @@ class SupervisorAgent(BaseAgent):
             当前问诊对话记录：
             {conversation_history}
             
+            当前中医专家给出的参考:
+             {tcm_response}
+            当前西医专家给出的参考:
+             {west_response}
             请评估当前问诊过程并决定是否需要给出建议。
             如果需要建议，请提供具体的专业建议。
             如果不需要建议，请只返回"无建议"。
@@ -41,46 +47,25 @@ class SupervisorAgent(BaseAgent):
             避免过度干预正常的问诊流程。
             """)
         ])
-    
-    def should_call_west_agent(self, conversation_history: str) -> bool:
-        """
-        决定是否调用西医agent
-        """
-        decision_prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个决策助手，负责判断当前问诊过程是否需要调用西医知识库来辅助诊断。
-            返回True表示需要调用西医agent，False表示不需要。
-            如果当前症状或问题可能需要西医诊断或治疗建议，返回True。
-            只返回True或False，不要其他内容。"""),
-            ("human", f"""当前问诊对话记录：
-{conversation_history}
-
-是否需要调用西医agent？""")
+        self.analysis_prompt = ChatPromptTemplate.from_messages([
+            ("system", """
+            你是一个中西医结合专家，负责分析整个问诊过程。
+            请从以下角度分析：
+            1. 问诊思路是否清晰合理
+            2. 问诊流程是否完整
+            3. 是否有重要信息遗漏
+            4. 给出改进建议
+            5. 总结并给出医生的问诊思路,画一个简单的带箭头的图
+            6. 对于问诊的流程和结果的各个方面打分，相对严格
+            """),
+            ("human", """
+            完整问诊对话记录：
+            {full_conversation}
+            
+            请给出分析和建议：
+            """)
         ])
-        
-        chain = decision_prompt | self.llm | StrOutputParser()
-        response = chain.invoke({})
-        
-        return response.strip().lower() in ['true', 'yes', '是', '需要']
     
-    def should_call_tcm_agent(self, conversation_history: str) -> bool:
-        """
-        决定是否调用中医agent
-        """
-        decision_prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是一个决策助手，负责判断当前问诊过程是否需要调用中医知识库来辅助诊断。
-            返回True表示需要调用中医agent，False表示不需要。
-            如果当前症状或问题可能需要中医辨证论治或中药建议，返回True。
-            只返回True或False，不要其他内容。"""),
-            ("human", f"""当前问诊对话记录：
-{conversation_history}
-
-是否需要调用中医agent？""")
-        ])
-        
-        chain = decision_prompt | self.llm | StrOutputParser()
-        response = chain.invoke({})
-        
-        return response.strip().lower() in ['true', 'yes', '是', '需要']
     
     def create_agent(self):
         """
@@ -88,13 +73,17 @@ class SupervisorAgent(BaseAgent):
         """
         return self.supervision_prompt | self.llm | StrOutputParser()
     
-    def evaluate_conversation(self, conversation_history: str) -> Dict[str, Any]:
+    def evaluate_conversation(self, conversation_history: str,tcm_response: str, west_response: str) -> Dict[str, Any]:
         """
         评估对话并决定是否提供建议
         """
+        print(type(conversation_history))
         agent = self.create_agent()
         advice = agent.invoke({
-            "conversation_history": conversation_history
+            "conversation_history": conversation_history,
+            "tcm_response":tcm_response,
+            "west_response":west_response
+
         })
         
         # 如果没有建议，返回空值
@@ -160,3 +149,16 @@ class SupervisorAgent(BaseAgent):
         
         chain = guidance_prompt | self.llm | StrOutputParser()
         return chain.invoke({})
+    
+    def analyze_diagnosis_process(self, conversation_history) -> str:
+        """
+        分析整个诊断过程并给出评价
+        """
+        full_conversation = "\n".join(conversation_history)
+        
+        chain = self.analysis_prompt | self.llm | StrOutputParser()
+        analysis = chain.invoke({
+            "full_conversation": full_conversation
+        })
+        
+        return analysis

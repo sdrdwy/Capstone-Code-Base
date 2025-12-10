@@ -16,17 +16,24 @@ from dotenv import load_dotenv
 load_dotenv()
 import os
 
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+
 
 class TcmAgent(BaseAgent):
     """
     中医知识图谱Agent
     """
     
-    def __init__(self, llm, graph, **kwargs):
+    def __init__(self, llm, graph, retriever=None, **kwargs):
         super().__init__(llm, **kwargs)
         self.graph = graph
         self.setup_agent()
-        
+        if retriever != None:
+            self.retriever = retriever
+
+
+
     def setup_agent(self):
         """
         设置agent的特定配置
@@ -50,11 +57,31 @@ class TcmAgent(BaseAgent):
         3. 确保查询语句简洁，不超过100字符
         """
 
+        BASIC_PROMPT = """
+        你是一位经验丰富的中医皮肤病领域专家，正在辅助专业的医生进行问诊。
+        请根据问题中隐含的专业程度，自动调整回答的深度与术语使用：
+        - 若问题包含专业术语或机制探讨，可使用规范医学术语，并简要解释关键概念；
+        - 若问题偏向症状描述或日常护理，请用通俗易懂的语言，避免 jargon；
+        - 始终保持尊重、耐心与同理心，不假设、不标签用户身份；
+        - 基于提供的上下文作答，若信息不足，请说明'现有资料较少，我将尽我所能为你解释'，并且根据你的原有知识作答；
+        - 回答需简洁，聚焦核心信息，避免冗长；
+        """
+
         self.cypher_prompt = PromptTemplate(
             template=CYPHER_GENERATION_TEMPLATE,
             input_variables=["schema", "question"]
         )
+
+        self.prompt_template = ChatPromptTemplate.from_messages([
+                    ("system", BASIC_PROMPT),
+                    ("human", "参考资料：\n{context}\n\n用户问题：{question}")
+                ])
         
+    def context_retrieve(self,query):
+        retrieved_docs = self.retriever.invoke(query)
+        context = format_docs(retrieved_docs)
+        return context
+    
     def create_agent(self):
         """
         创建TCM agent
@@ -68,63 +95,60 @@ class TcmAgent(BaseAgent):
             validate_cypher=True,
             fix_cypher=True, 
             max_fix_attempts=2,
-            # return_direct=True,
+            return_direct=True,
         )
-        return chain
+        rag_chain = self.prompt_template | self.llm | StrOutputParser()
+        return chain,rag_chain
 
     def query(self, query: str):
         """
         执行查询
         """
-        agent = self.create_agent()
+        agent,rag_agent = self.create_agent()
         response = agent.invoke({"query": query})
+        try:
+            graph_result = response.get('result', '') if isinstance(response, dict) else str(response)
+        except:
+            graph_result = []
+        context = self.context_retrieve(query)
         
-        # 只返回查询结果的链路，不返回额外的总结
-        result = response.get('result', '') if isinstance(response, dict) else str(response)
+        response_rag = rag_agent.invoke({'query':query,
+                                         'context':f"rag_result:{context}\n graph_result:{graph_result}",
+                                         'question':query})
         
-        # 提取实际的查询结果部分，去除额外的解释
-        if "以下是查询结果" in result:
-            # 提取实际的查询结果部分
-            start_idx = result.find("以下是查询结果")
-            result = result[start_idx:]
-        elif "结果：" in result or "结果:" in result:
-            # 提取结果部分
-            import re
-            match = re.search(r'[结果：:](.*)', result)
-            if match:
-                result = match.group(1).strip()
-        
-        return {"result": result}
-
-
-def rag_query(graph, llm, query):
-    """
-    传统函数接口，为了向后兼容
-    """
-    agent = TcmAgent(llm, graph)
-    return agent.query(query)
+        ret = {
+            'graph':graph_result,
+            'retrieved_docs':context,
+            'result':response_rag
+        }
+        # print(response_rag)
+        return ret
 
 
 if __name__ == "__main__":
     graph = Neo4jGraph(database=os.environ["DB_NAME"])
-    # print(graph.schema)
-    # exit(0)
     llm = ChatTongyi(
         model="qwen-max",        
         temperature=0,
-        # max_tokens=2048,
     )
     embedding = DashScopeEmbeddings(model="text-embedding-v2")
+    embedding2 = DashScopeEmbeddings(model="text-embedding-v3")
     vectorstore = Chroma(
         persist_directory="basic_app/chroma_db_embedding",
         embedding_function=embedding
     )
+
+    med_vectorstore = Chroma(
+        persist_directory="chroma_TCM_rag_db_qwen",
+        embedding_function=embedding2,
+        collection_name="medical_book_qwen"
+    )
+    med_retriever = med_vectorstore.as_retriever(search_kwargs={"k":4})
     query = input()
     fixed = fix_query(query,llm,vectorstore,10)
     print(fixed['query'])
     fixed_query = fixed['query']
-    # ret = rag_query(graph,llm,fixed_query)
-    Agent = TcmAgent(llm=llm,graph=graph)
+    Agent = TcmAgent(llm=llm,graph=graph,retriever=med_retriever)
     ret = Agent.query(fixed_query)
     print(ret)
 

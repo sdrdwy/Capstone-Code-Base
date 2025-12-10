@@ -1,184 +1,204 @@
-import gradio as gr
-import time  
-from basic_app.agents import tcm_agent, west_agent
-from basic_app.utils import query_fix
-import dotenv
-dotenv.load_dotenv()
+#!/usr/bin/env python3
+"""
+中西医结合问诊系统 Gradio Web UI
+"""
+
 import os
-from langchain_neo4j import Neo4jGraph
+import gradio as gr
+from dotenv import load_dotenv
 from langchain_community.chat_models import ChatTongyi
 from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
+from langchain_neo4j import Neo4jGraph
+
+from .agents.west_agent import WestAgent, medical_qa_pipeline
+from .agents.tcm_agent import TcmAgent
+from .agents.supervisor_agent import SupervisorAgent
+from .agents.final_agent import FinalAgent
+from .utils.query_fix import fix_query
 
 
-graph = Neo4jGraph(database=os.environ['DB_NAME'])
-llm = ChatTongyi(
-        model="qwen-max",        
-        temperature=0,
-        # max_tokens=2048,
-)
+# ======================
+# 初始化一次（避免每次推理都初始化）
+# ======================
+load_dotenv()
+
+llm = ChatTongyi(model="qwen-max", temperature=0.1)
+
 embedding = DashScopeEmbeddings(model="text-embedding-v2")
-vectorstore = Chroma(
+
+west_vectorstore = Chroma(
+    persist_directory="./chroma_db_dash_w",
+    embedding_function=embedding
+)
+
+tcm_vectorstore = Chroma(
     persist_directory="basic_app/chroma_db_embedding",
     embedding_function=embedding
 )
-def process_query_streaming(user_input):
-    """
-    模拟分阶段处理，并在每个阶段结束后 yield 当前状态和结果。
-    返回格式: (top_k, graphrag, flow_state)
-    flow_state: 0=初始, 1=中医完成, 2=西医完成, 3=整合完成, 4=全部完成
-    """
 
-    # 初始状态
-    yield "", "", "", 0
+graph = Neo4jGraph(database=os.environ["DB_NAME"])
 
-    query_tuple = query_fix.fix_query(user_input,llm,vectorstore,10)
-    fixed_query = query_tuple['query']
-    #WST
-    west_ret = west_agent.medical_qa_pipeline(llm_choice="qwen-max",
-                                   vector_db_path="./chroma_db_dash_w",
-                                   user_query=user_input)
-    # top_k_result = f"西医分析中... 基于症状 '{user_input}'，初步建议：\n- 疏肝理气\n- 养心安神"
-    top_k_result = f"searched content:\n{west_ret['retrieved_docs']}"
-    # final_topk = west_ret['answer']
-    yield "", top_k_result,"", 1
+west_agent = WestAgent(
+    llm=llm,
+    retriever=west_vectorstore.as_retriever(search_kwargs={"k": 3})
+)
 
-    # TCM
-    graph_rag_res = tcm_agent.rag_query(graph,llm,fixed_query)
-    # graphrag_result = f"西医知识图谱匹配：\n- ICD-10: F51.0 (失眠)\n- 相关检查: 睡眠监测, 甲状腺功能"
-    graphrag_result = graph_rag_res['result']
-    yield "", top_k_result, graphrag_result, 2
+tcm_agent = TcmAgent(llm=llm, graph=graph)
 
-    # 模拟信息整合
-    time.sleep(2)
-    integrated_topk = f"【综合建议】\n{top_k_result}\n\n补充：{graphrag_result}"
-    yield "", integrated_topk, graphrag_result, 3
+final_agent = FinalAgent(llm=llm, west_agent=west_agent, tcm_agent=tcm_agent)
 
-    # 最终输出
-    time.sleep(2)
-    # final_topk = f"✅ 最终诊断建议：\n{integrated_topk}"
-    
-    final_graphrag = f"✅ 知识图谱确认：\n{graphrag_result}"
-    final_topk = west_ret['answer'] + final_graphrag
-    yield final_topk, top_k_result, final_graphrag, 4
+supervisor_agent = SupervisorAgent(llm=llm)
 
 
-# ==========================
-# 生成流程图 HTML（根据状态高亮）
-# ==========================
-def render_flow_chart(state):
-    colors = {
-        0: "#cccccc",  # 灰色 - 未开始
-        1: "#4CAF50",  # 绿色 - 中医完成
-        2: "#2196F3",  # 蓝色 - 西医完成
-        3: "#FF9800",  # 橙色 - 整合完成
-        4: "#9C27B0",  # 紫色 - 全部完成
-    }
-    bg_colors = {
-        0: "#f5f5f5",
-        1: "#e6f7ff",
-        2: "#e6f7ff",
-        3: "#fff3e0",
-        4: "#f3e5f5",
-    }
-
-    # 根据当前状态决定各节点颜色
-    tcm_color = colors[1] if state >= 1 else colors[0]
-    wm_color = colors[2] if state >= 2 else colors[0]
-    merge_color = colors[3] if state >= 3 else colors[0]
-    output_color = colors[4] if state >= 4 else colors[0]
-
-    tcm_bg = bg_colors[1] if state >= 1 else bg_colors[0]
-    wm_bg = bg_colors[2] if state >= 2 else bg_colors[0]
-    merge_bg = bg_colors[3] if state >= 3 else bg_colors[0]
-    output_bg = bg_colors[4] if state >= 4 else bg_colors[0]
-
-    html = f"""
-    <div style="display: flex; justify-content: space-around; align-items: center; margin: 15px 0;">
-        <div style="text-align: center;">
-            <div style="width: 80px; height: 80px; line-height: 80px; border: 2px solid {tcm_color}; border-radius: 50%; display: inline-block; background-color: {tcm_bg}; font-size: 14px; font-weight: {'bold' if state >= 1 else 'normal'};">西医查询</div>
-        </div>
-        <div style="font-size: 24px;">→</div>
-        <div style="text-align: center;">
-            <div style="width: 80px; height: 80px; line-height: 80px; border: 2px solid {wm_color}; border-radius: 50%; display: inline-block; background-color: {wm_bg}; font-size: 14px; font-weight: {'bold' if state >= 2 else 'normal'};">中医查询</div>
-        </div>
-        <div style="font-size: 24px;">→</div>
-        <div style="text-align: center;">
-            <div style="width: 80px; height: 80px; line-height: 80px; border: 2px solid {merge_color}; border-radius: 50%; display: inline-block; background-color: {merge_bg}; font-size: 14px; font-weight: {'bold' if state >= 3 else 'normal'};">整合信息</div>
-        </div>
-        <div style="font-size: 24px;">→</div>
-        <div style="text-align: center;">
-            <div style="width: 80px; height: 80px; line-height: 80px; border: 2px solid {output_color}; border-radius: 50%; display: inline-block; background-color: {output_bg}; font-size: 14px; font-weight: {'bold' if state >= 4 else 'normal'};">输出结果</div>
-        </div>
-    </div>
-    """
-    return html
+# ======================
+# Gradio 交互函数
+# ======================
+def reset_conversation():
+    final_agent.reset_conversation()
+    return [], "", "", "", ""
 
 
-# ==========================
-# 主处理函数（generator，支持流式更新）
-# ==========================
-def respond_streaming(message, chat_history):
-    if not message.strip():
-        yield "", chat_history, "", "", gr.HTML(value=render_flow_chart(0))
-        return
+def send_message(history, user_input, _):
+    if not user_input.strip():
+        return history, "", "", "", ""
 
-    # 添加用户消息
-    new_history = chat_history + [{"role": "user", "content": message}]
-    # 添加一个占位的 assistant 消息（后续会被更新）
-    new_history = new_history + [{"role": "assistant", "content": "正在分析..."}]
+    # 保存原始输入
+    patient_input = user_input.strip()
 
-    final_topk = ""
-    final_graphrag = ""
-
-    for chat, topk, graphrag, state in process_query_streaming(message):
-        final_topk = topk if topk else final_topk
-        final_graphrag = graphrag if graphrag else final_graphrag
-
-        # 实时更新所有组件
-        current_chat = new_history.copy()
-        if state > 0:
-            current_chat[-1]["content"] = chat  # 更新对话框内容
-
-        flow_html = render_flow_chart(state)
-
-        yield (
-            "",  # 清空输入框（仅在最后清空，这里保留也可）
-            current_chat,
-            final_topk,
-            final_graphrag,
-            gr.HTML(value=flow_html)
+    # === 西医 Agent ===
+    west_response = "无结果"
+    try:
+        west_result = medical_qa_pipeline(
+            llm_choice="qwen-max",
+            vector_db_path="./chroma_db_dash_w",
+            user_query=patient_input
         )
+        west_response = west_result.get('answer', '无结果')
+    except Exception as e:
+        west_response = f"⚠️ 西医错误: {str(e)}"
 
-    # 最终清空输入框
-    yield "", current_chat, final_topk, final_graphrag, gr.HTML(value=render_flow_chart(4))
+    # === 中医 Agent ===
+    tcm_response = "无结果"
+    try:
+        fixed_query_result = fix_query(patient_input, llm, tcm_vectorstore, 10)
+        fixed_query = fixed_query_result['query']
+        if len(fixed_query) > 100:
+            fixed_query = fixed_query[:100]
+        tcm_result = tcm_agent.query(fixed_query)
+        tcm_response = tcm_result.get('result', '无结果')
+    except Exception as e:
+        tcm_response = f"⚠️ 中医错误: {str(e)}"
+
+    # === Final Agent 处理 ===
+    final_response = final_agent.process_input(
+        patient_input=patient_input,
+        west_response=west_response,
+        tcm_response=tcm_response
+    )
+    doctor_reply = final_response['response']
+    is_ended = final_response['is_ended']
+
+    # 更新聊天历史
+    history.append([patient_input, doctor_reply])
+
+    # === Supervisor 评估 ===
+    conversation_history = "\n".join(final_agent.conversation_history)
+    supervision = supervisor_agent.evaluate_conversation(conversation_history)
+    supervisor_output = supervision.get('advice', '') if supervision.get('should_advise') else ""
+
+    if is_ended:
+        # 触发总结（显示在 supervisor 区域或单独弹出）
+        summary = final_agent.analyze_diagnosis_process()
+        supervisor_output = f"【问诊总结】\n\n{summary}"
+
+    return history, supervisor_output, west_response, tcm_response, ""
 
 
-# ==========================
-# 构建界面
-# ==========================
-with gr.Blocks(title="中医问诊辅助系统 - 流程可视化") as demo:
-    gr.Markdown("## 🩺 中医问诊辅助系统（带实时流程图）")
+def end_diagnosis(history):
+    if not final_agent.conversation_history:
+        return history, "无问诊记录可总结。", "", "", ""
 
-    with gr.Row(equal_height=False):
-        with gr.Column(scale=1, min_width=350):
-            chatbot = gr.Chatbot(type="messages", height=550, label="问诊对话")
-            msg = gr.Textbox(label="请输入您的症状或问题", placeholder="例如：失眠、乏力、食欲不振...")
+    summary = final_agent.analyze_diagnosis_process()
+    supervisor_output = f"【问诊总结】\n\n{summary}"
+    # 可选择不清空，或重置
+    # final_agent.reset_conversation()
+    return history, supervisor_output, "", "", ""
 
-        with gr.Column(scale=1, min_width=400):
-            topk_output = gr.Textbox(label="💡 Top-K 推荐结果", interactive=False, lines=6, max_lines=10)
-            graphrag_output = gr.Textbox(label="🧬 GraphRAG 知识图谱查询", interactive=False, lines=6, max_lines=15)
-            flow_chart_display = gr.HTML(value=render_flow_chart(0))  # 初始状态
 
-    # 使用 queue=True 启用流式输出
-    msg.submit(
-        respond_streaming,
-        inputs=[msg, chatbot],
-        outputs=[msg, chatbot, topk_output, graphrag_output, flow_chart_display],
-        queue=True  # 关键：启用队列以支持 yield
+# ======================
+# 构建 Gradio 界面
+# ======================
+with gr.Blocks(title="中西医结合智能问诊系统") as demo:
+    gr.Markdown("## 🩺 中西医结合智能问诊系统")
+    gr.Markdown("请输入您的症状或问题，系统将并行调用中西医知识库进行分析。")
+
+    with gr.Row():
+        # 左侧：聊天窗口
+        with gr.Column(scale=2):
+            chatbot = gr.Chatbot(
+                label="问诊对话",
+                height=500,
+                bubble_full_width=False
+            )
+            user_input = gr.Textbox(
+                label="您的症状或问题",
+                placeholder="例如：我最近头痛、乏力...",
+                lines=2
+            )
+            with gr.Row():
+                submit_btn = gr.Button("发送")
+                reset_btn = gr.Button("重置对话")
+                end_btn = gr.Button("结束问诊", variant="stop")
+
+        # 右侧：三栏信息
+        with gr.Column(scale=1):
+            supervisor_box = gr.Textbox(
+                label="🧑‍🏫 Supervisor 建议 / 问诊总结",
+                interactive=False,
+                lines=6
+            )
+            west_box = gr.Textbox(
+                label="西医 Agent 输出",
+                interactive=False,
+                lines=6
+            )
+            tcm_box = gr.Textbox(
+                label="中医 Agent 输出",
+                interactive=False,
+                lines=6
+            )
+
+    # 状态管理：不需要额外 state，final_agent 本身持有状态
+    # 但为了兼容性，可留空 gr.State()
+
+    # 事件绑定
+    submit_event = submit_btn.click(
+        fn=send_message,
+        inputs=[chatbot, user_input],
+        outputs=[chatbot, supervisor_box, west_box, tcm_box, user_input],
+        queue=False
+    )
+    user_input.submit(
+        fn=send_message,
+        inputs=[chatbot, user_input],
+        outputs=[chatbot, supervisor_box, west_box, tcm_box, user_input],
+        queue=False
     )
 
-# 启动
+    reset_btn.click(
+        fn=reset_conversation,
+        inputs=[],
+        outputs=[chatbot, supervisor_box, west_box, tcm_box, user_input],
+        queue=False
+    )
+
+    end_btn.click(
+        fn=end_diagnosis,
+        inputs=[chatbot],
+        outputs=[chatbot, supervisor_box, west_box, tcm_box, user_input],
+        queue=False
+    )
+
 if __name__ == "__main__":
-    demo.queue()  # 启用队列
-    demo.launch(inbrowser=True)
+    demo.launch()

@@ -183,7 +183,7 @@ class WestAgent(BaseAgent):
         retrieved_docs_content = [doc.page_content for doc in final_state["source_documents"]]
         
         return {
-            "answer": final_state["result"],
+            "result": final_state["result"],
             "retrieved_docs": retrieved_docs_content,
             "agent_mode": final_state["agent_mode"],
             "use_deep": final_state["use_deep"]
