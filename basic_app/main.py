@@ -186,7 +186,6 @@ def run_diagnosis_system(enable_advice = True):
 
 
 if __name__ == "__main__":
-    # 选择运行同步或异步版本
     import sys
     if "--disable" in sys.argv:
         run_diagnosis_system(enable_advice=True)
